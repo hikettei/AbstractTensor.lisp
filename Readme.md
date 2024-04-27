@@ -53,7 +53,15 @@ $ caten --runtime cuda
     (setf z1 (+ A B))
     (return z1))
 "
-
+↑ yamlでもいい気がする
+conv2d:
+    - in:
+        - A{T}[M, N]<0 1>(where N = 1)
+	- B{T} ...
+    - out:
+	- B # outはSymbolのみ
+    - impl:
+        - "(progn ...)"
 ```
 
 ### Autodiff (WIP)

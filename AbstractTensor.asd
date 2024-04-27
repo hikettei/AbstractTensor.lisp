@@ -4,9 +4,9 @@
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
   :depends-on
-  ("abstracttensor.docs"
-   "abstracttensor.ir"
-   "abstracttensor.lang")
+  ("abstracttensor.core.docs"
+   "abstracttensor.core.ir"
+   "abstracttensor.core.lang")
   :components
   ())
 
