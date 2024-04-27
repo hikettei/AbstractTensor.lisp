@@ -1,5 +1,5 @@
 
-(asdf:defsystem "AbstractTensor.docs"
+(asdf:defsystem "abstracttensor.docs"
   :description "Documentation System for AbstractTensor"
   :author "hikettei <ichndm@gmail.com>"
   :licence "MIT"

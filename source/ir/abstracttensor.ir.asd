@@ -1,5 +1,5 @@
 
-(asdf:defsystem "AbstractTensor.lang"
+(asdf:defsystem "abstracttensor.ir"
   :description "Elegant IR System for SoTA Deep Learning Compiler"
   :author "hikettei <ichndm@gmail.com>"
   :licence "MIT"
