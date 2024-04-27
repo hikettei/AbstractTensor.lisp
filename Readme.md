@@ -1,6 +1,18 @@
 
 # AbstractTensor.lisp
 
+# Goal
+
+- Python/Coalton/Common Lisp/その他言語でAPIを呼び出せる
+
+- Keep Simple; < 7000 lines
+
+- Kernel自動生成の考え方。(Operator, Composite, Realizeの考え方)
+
+- 超デバッグが簡単
+
+- 20年後でもメンテナンス可能にする
+
 # Workload
 
 - [ ] Coalton-Based Implementation
@@ -16,10 +28,20 @@
 - [ ] Eazy to add manual optimization techniques by users
 - [ ] Documentation System
 - [ ] Better Examples
+- [ ] Support these ops and optimizations: Take, Slice
+- [ ] Elegant Error
+- [ ] Eazy to add graph-rewriting
+- [ ] Every Ops are in-place, but for example add is defined as: (add (copy x) y).
+- [ ] A Concept of Composite
+- [ ] Super fast compiling time
+- [ ] GraphView System
+- [ ] Super eazy to debug/optimize/and understand the bottleneck.
+- [ ] Kernel自動生成の考え方，Conv/ReLUなどは事前に自動生成しておく。
+- [ ] Eazy (and fast) to rewriting a graph
 
 ## Usage (WIP)
 
-- Lisp風DSLを記述
+- Lisp風DSLを記述 (他の言語から自動生成されること前提)
 - gcc的に使えるようにしたい
 
 ### Codegen
@@ -27,10 +49,9 @@
 ```
 $ caten --runtime cuda
 "
-(function ((A{T}[M, N], B{T}[M, N]) -> (A{T}[M, k]) where K = (* 2 M))
+(composite ((A{T}[M, N], B{T}[M, N]) -> (A{T}[M, k]) where K = (* 2 M))
     (setf z1 (+ A B))
     (return z1))
-
 "
 
 ```
@@ -61,6 +82,6 @@ main:
     - Tensorの情報 (Name, Required-Grad, Dynamic Shape) を伝える
     - BodyのDAGを記述する部分
     - Iterations can be only expressed as permutations.
-    - 
-    
-- [ ] AbstractTensor/
+
+- [ ] AbstractTensor/Lang
+    - DL Compiler専用プログラミング言語的な

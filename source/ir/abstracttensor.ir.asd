@@ -4,7 +4,11 @@
   :author "hikettei <ichndm@gmail.com>"
   :licence "MIT"
   :serial t
+  :depends-on
+  ("cl-ppcre"
+   "trivia"
+   "xsubseq")
   :components
   ((:file "package")
-   (:file "type-relay")))
+   (:file "shape-tracker")))
 
