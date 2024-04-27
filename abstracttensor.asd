@@ -1,5 +1,5 @@
 
-(asdf:defsystem "AbstractTensor"
+(asdf:defsystem "abstracttensor"
   :description "General Purpose Deep Learning Compiler"
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"

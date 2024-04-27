@@ -10,5 +10,6 @@
    "xsubseq")
   :components
   ((:file "package")
-   (:file "shape-tracker")))
+   (:file "shape-tracker")
+   (:file "composite")))
 

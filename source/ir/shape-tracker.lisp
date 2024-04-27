@@ -146,6 +146,7 @@ Example:
 	     1
 	     #'(lambda (x &aux (x1 (str x)))
 		 (or
+		  (number x1)
 		  (name x1)
 		  (broadcast x1)
 		  (error "cannot parse1 ~a" x1)))))
@@ -197,5 +198,8 @@ Example:
 (define-compiler-macro parse-aten (expression)
   (with-slots ((id id) (type-class type-class) (shape shape) (order order) (where where)) (%parse-aten expression)
     `(make-aten ',id ',type-class ',shape ',order ',where)))
+
+;; Compose etc
+(defun solve ())
 
 

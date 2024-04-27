@@ -1,0 +1,17 @@
+#!/bin/sh
+#|-*- mode:lisp -*-|#
+#|
+exec ros -Q -- $0 "$@"
+|#
+
+(progn ;;init forms
+  (ros:ensure-asdf)
+  #+quicklisp(cl:push (cl:pathname "./") ql:*local-project-directories*)
+  #+quicklisp(ql:quickload '(:caten) :silent t))
+
+(defpackage :ros.script.caten.3923109921
+  (:use :cl :caten))
+(in-package :ros.script.caten.3923109921)
+
+;;; vim: set ft=lisp lisp:
+
