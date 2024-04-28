@@ -11,5 +11,6 @@
   :components
   ((:file "package")
    (:file "shape-tracker")
+   (:file "atoms")
    (:file "composite")))
 

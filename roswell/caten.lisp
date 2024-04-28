@@ -14,8 +14,12 @@
 (in-package :caten)
 
 (defun caten/handler (cmd)
-  (let ((path (clingon:getopt cmd :input)))
-    (print (aten/lang:composite-from-file path))))
+  (let* ((path (clingon:getopt cmd :input))
+	 (composite (aten/lang:composite-from-file path)))
+    (print
+     (aten/lang:trace-uops
+      (aten/ir:composite-inputs composite)
+      (read-from-string (aten/ir:composite-code composite))))))
 
 (defun caten/options ()
   (list

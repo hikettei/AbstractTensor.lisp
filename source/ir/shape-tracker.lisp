@@ -20,6 +20,14 @@ A{T}[M, ~, N]<1 ~ 0>(where M = 1)
   (order order :type list)
   (where where))
 
+(defmethod print-object ((obj AbstractTensor) stream)
+  (format stream "AbstractTensor[~a]{~a}(shape=~a, order=~a, where=~a)"
+	  (aten-id obj)
+	  (aten-type-class obj)
+	  (aten-shape obj)
+	  (aten-order obj)
+	  (aten-where obj)))
+
 (define-condition aten-parse-error ()
   ((expression :type string)
    (at :type keyword))

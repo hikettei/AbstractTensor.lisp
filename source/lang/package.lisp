@@ -7,6 +7,7 @@
   (:export
    #:composite-from-toml
    #:composite-from-file
+   #:trace-uops
    ))
 
 

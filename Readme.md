@@ -38,6 +38,28 @@
 - [ ] Super eazy to debug/optimize/and understand the bottleneck.
 - [ ] Kernel自動生成の考え方，Conv/ReLUなどは事前に自動生成しておく。
 - [ ] Eazy (and fast) to rewriting a graph
+    - CompileされたCompositeの一覧をどっかのLUTに割り振れるようにする。
+    - Training/Inferenceの実行は，datenにGraphを記述することで実行できるようにする。
+- [ ] randn/betaとかもコンパイルして生成
+- winograd
+
+- [ ] TinygradのScheduling, Loweringをもってくる。
+- コンセプトはこう:
+    - 27のPrinciple Operatorがある。(Including Take, If, etc...)
+    - Composite = 27 Opsを組み合わせて複雑な命令(ReLU, Conv2D, Gemm...)を表現
+    - In-Placeにこだわりすぎなくていい (LayerNormとか，ある程度でかいブロックでおk)
+    - Composite Cache System. 自動でコンパイル結果をCache+割り当てする。 (~/tmpとかに配置)
+    - Dynamicなグラフ書き換えに対応。
+    - ^- defoptimizerみたいな感じで，書き換えのルールを作成。(OpenBLASのGemmに書き換える，など)
+    - Composite call from compositeができるようにしたい
+    - 今考える: Multiple BackendにCompileできるPrinciple Ops(Take)を実装. -> Scheduler -> Compile
+    - [10, 10][10, 0]にしたらSIMD化できないけど，どう実装するのか気になる
+    - ^- 上の最適化が必要になるのってどんな状況だろう？
+        - Composite <-> Compositeの箇所でSliceは挟まないから，一旦Composite内部で考えればよさそう？
+	- 要は早いConv2DのCompositeさえ入手できれば(PyTorchがそうなように) 十分な速度を期待できる。
+	- Scalarに対するCompilerもつくる！
+	
+- [ ] daten.ros, abstracttensor/high-level/autograd, abstracttensor/high-level/quantization, nn, etc...
 
 ## Usage (WIP)
 
@@ -67,7 +89,7 @@ conv2d:
 ### Autodiff (WIP)
 
 ```
-$ adeep --runtime cuda --plugin cuda-backend.lisp
+$ daten --runtime cuda --plugin cuda-backend.lisp
 "
 modules:
   function L1: A{Dense}[M, N] B{Dense}[M, N] -> A{T}[M, k]

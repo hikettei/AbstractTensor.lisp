@@ -25,7 +25,6 @@
 	 :outputs (config-of composite "outputs")
 	 :code (config-of impl "code"))))))
 
-
 (defun composite-from-file (filepath)
   (with-text (toml filepath)
     (let ((result (composite-from-toml toml)))

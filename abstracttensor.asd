@@ -6,6 +6,7 @@
   :depends-on
   ("abstracttensor.docs"
    "abstracttensor.ir"
+   "abstracttensor.engine"
    "abstracttensor.lang")
   :components
   ())

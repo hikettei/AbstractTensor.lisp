@@ -3,6 +3,18 @@
 
 (defpackage :AbstractTensor/IR
   (:nicknames aten/ir)
+  (:documentation "
+[TODO]
+
+- [ ] ShapeTrackerを実装
+    -  Compose
+    - TODO: View, Reshape, Permute, Take(Slice)
+
+- [ ] Composite
+    - Principle Ops
+
+- [ ] Composite Caching System
+")
   (:use :cl)
   (:export
    #:AbstractTensor
