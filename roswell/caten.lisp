@@ -31,6 +31,8 @@
     :key :input)))
 
 (defun caten/command ()
+  ;; Usage (WIP)
+  ;; ./caten -i gemm.toml --disassemble --benchmark i=1,j=1,k=1
   (clingon:make-command
    :name "caten"
    :description "Command Line Tool for AbstractTensor.lisp"

@@ -9,5 +9,7 @@
   :components
   ((:file "package")
    (:file "uops")
-   (:file "schedule")))
+   (:file "schedule")
+   (:file "uops-simplifier")
+   (:file "uops-optimizer")))
 

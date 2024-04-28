@@ -1,17 +1,6 @@
 
 (in-package :abstracttensor/lang)
 
-(defstruct Range
-  (from)
-  (to)
-  (by))
-
-(defmethod print-object ((obj range) stream)
-  (format stream "<Range: from ~a to ~a by ~a>"
-	  (range-from obj)
-	  (range-to obj)
-	  (range-by obj)))
-
 (defstruct Counter
   (val 0 :type fixnum)
   (alu 0 :type fixnum))
@@ -21,8 +10,8 @@
 	   (type symbol name))
   (format nil "~(~a~)_~a" name (slot-value counter name)))
 
-(defun spawn-range (from to by)
-  (make-range :from from :to to :by by))
+(defun spawn-range (id from to by)
+  (make-range :id id :from from :to to :by by))
 
 
 ;; Feature Enhancement
@@ -30,9 +19,10 @@
 ;; -> (dotimes (x ...)
 ;; ->   (dotimes (y ...)
 ;; ->       (op ... mitaini suru)))
+;; - TODO: Imrpove the quality of error message
 (defun graph-funcall (counter scope form)
   (flet ((explore (code)
-	   (alexandria:flatten (graph-funcall counter scope code)))
+	   (graph-funcall counter scope code))
 	 (getscope (name)
 	   (or (gethash name scope)
 	       (error "~a is not defined." name))))
@@ -42,12 +32,12 @@
       ((list* 'dotimes (list bind count) _)
 
        ;; binds the iterator variables into bind
-       (setf (gethash bind scope) (spawn-range 0 count 1))
+       (setf (gethash bind scope) (spawn-range bind 0 count 1))
        (prog1
 	   `(,(aten/engine:make-uop-loop
 	       :iters (list (getscope bind))
 	       :scope :global)
-	     ,@(map 'list #'explore (cddr form))
+	     ,@(apply #'append (map 'list #'explore (cddr form)))
 	     ,(aten/engine:make-uop-endloop
 	       :iters (list (getscope bind))
 	       :option :none))
@@ -58,12 +48,12 @@
       ;; (for (x from to by)
       ;; ...)
       ((list* 'for (list bind from to by) _)
-       (setf (gethash bind scope) (spawn-range from to by))
+       (setf (gethash bind scope) (spawn-range bind from to by))
        (prog1
 	   `(,(aten/engine:make-uop-loop
 	       :iters (list (getscope bind))
 	       :scope :global)
-	     ,@(map 'list #'explore (cddr form))
+	     ,@(apply #'append (map 'list #'explore (cddr form)))
 	     ,(aten/engine:make-uop-endloop
 	       :iters (list (getscope bind))
 	       :option :none))
@@ -77,7 +67,7 @@
       ((list* (or '+ '- '* '/ '> '>= '< '<= '=) _)
        (let ((car (car form))
 	     (args (map 'list #'explore (cdr form))))
-	 `(,@args
+	 `(,@(apply #'append args)
 	   ,(aten/engine:make-uop-alu
 	     :x-writes
 	     (list
@@ -85,7 +75,8 @@
 		  (read-counter counter 'alu)
 		(incf (counter-alu counter))))
 	     :x-reads
-	     (map 'list #'aten/engine:uop->buffer args)
+	     (loop for arg in args
+		   collect (aten/engine:uop->buffer (car (last arg))))
 	     :op-type (intern (symbol-name car) "KEYWORD")))))
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
@@ -107,12 +98,11 @@
 
       ((list 'setf to what)
        (let ((to   (explore to))
-	     (what (explore what)))
+	     (what (explore what))) 
 	 `(,@what
-	   ,@to
-	   ,(aten/engine:make-uop-load
-	     :x1 (aten/engine:uop->buffer to)
-	     :x2 (aten/engine:uop->buffer what)))))
+	   ,(aten/engine:make-uop-store
+	     :x1 to
+	     :x2 (aten/engine:uop->buffer (car (last what)))))))
 
       ;; (if exp then &optional else)
 
@@ -123,14 +113,14 @@
       ;; progn -> { forms }
 
       ((list* 'progn _)
-       `(,@(map 'list #'explore (cdr form))))
+       `(,@(apply #'append (map 'list #'explore (cdr form)))))
 
       ;; aref -> A[idx]
       ;; Return: Buffer
       ((list* 'aref (type symbol) _)
        (let* (;;subscripts (map 'list #'explore (cddr form)))
 	      (buffer (aten/engine:make-aref-buffer
-		       :idx  (cddr form);;subscripts
+		       :idx  (cddr form) ;;subscripts
 		       :name (getscope (second form)))))
 	 (list
 	  (aten/engine:make-uop-load

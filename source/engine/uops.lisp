@@ -10,10 +10,25 @@
 
 (in-package :abstracttensor/engine)
 
+(defstruct Range
+  (id)
+  (from)
+  (to)
+  (by))
+
+(defmethod print-object ((obj range) stream)
+  (format stream "<Range[~a]: from ~a to ~a by ~a>"
+	  (range-id obj)
+	  (range-from obj)
+	  (range-to obj)
+	  (range-by obj)))
+
+
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun symb (&rest args)
     (intern (with-output-to-string (c) (dolist (a args) (princ a c))))))
 
+;; RAW DependencyをLOOPとかも読めるようにするべきだと思う
 (defmacro define-uop (name docs slots)
   `(progn
      (export ',(symb 'make- 'uop- name))
@@ -58,8 +73,8 @@ for (iters0=0...X) {
             ....
 ```
 "
-    ((iters nil :type list)
-     (scope :global :type (and keyword (member :global :local)))))
+  ((iters nil :type list)
+   (scope :global :type (and keyword (member :global :local)))))
 
 (define-uop EndLoop
   "
@@ -90,7 +105,7 @@ If [Condition] [ID]
 EndIF [ID]
 ```
 "
-    ((id nil)))
+  ((id nil)))
 
 (define-uop Special
   ""
@@ -119,8 +134,16 @@ Stores x2 into x1.
    (x2 nil :type Buffers)))
 
 (define-uop store
-  ""
-  ())
+  "
+## UOp[Store]
+```
+Store [x1] [x2]
+```
+Stores the value of x2 into x1.
+"
+  ((x1 nil)
+   (x2 nil)))
+
 (define-uop const
   ""
   ())
@@ -128,8 +151,8 @@ Stores x2 into x1.
   ""
   ())
 (define-uop PHI
-    ""
-    ())
+  ""
+  ())
 (define-uop ALU
   "
 ## UOp[ALU]
@@ -142,7 +165,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
    (op-type nil)))
 
 (define-uop WMMA
-    ""
+  ""
   ())
 
 (define-uop Cast
@@ -163,9 +186,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
     (UOp-Load (uop-load-x1 uop))
     (UOp-ALU (uop-alu-x-writes uop))
     (Buffers uop)
-    (List (uop->buffer (car uop)))
     (T (error "~a cannot be a buffer." uop))))
-    
 
 (defstruct (UOpGraph
 	    (:constructor make-uopgraph (uops)))
@@ -179,7 +200,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 	if (uop-define-global-p op)
 	  collect op))
 
-  
+
 (defun uop-optimize (graph)
   (declare (type UOpGraph graph))
   
