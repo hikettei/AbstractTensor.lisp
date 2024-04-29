@@ -185,6 +185,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
   ())
 
 (defun uop->buffer (uop)
+  "Receives a UOp and identifies which buffer contains the value."
   (typecase uop
     (UOp-Load (uop-load-x1 uop))
     (UOp-ALU  (car (uop-alu-x-writes uop)))
@@ -203,9 +204,19 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 	if (uop-define-global-p op)
 	  collect op))
 
+(defun uop-optimize (uops)
+  "## [function] uop-optimize
+Returns a list of optimized uops graph
+"
+  (declare (type list uops))
 
-(defun uop-optimize (graph)
-  (declare (type UOpGraph graph))
-  
+  ;; A lot of optimization stuffs are behind
+  ;; - ./uops-simplifier.lisp (DAG Fusion, Constant Folding, etc)
+  ;; - ./uops-optimizer.lisp  (Unsafe Optimizations, Loop Optimization Techniques, etc)
+  (let* ((uops   (uops-simplify uops))
+	 (graph  (make-uopgraph uops))
+	 ;; First, optimizes the iterations
+	 (graph1 (uops-optimize-loops graph)))
 
-  )
+    graph1
+    ))

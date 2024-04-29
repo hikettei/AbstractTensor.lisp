@@ -8,9 +8,17 @@
    #:uop->buffer
    
    )
+
+  ;; Simplifiers
   (:export
    #:uops-simplify
-   #:define-simplifier)
+   #:define-simplifier
+   )
+
+  ;; Optimizations
+  (:export
+   #:uop-optimize
+   )
   
   (:export
    #:Range

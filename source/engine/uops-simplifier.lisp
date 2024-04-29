@@ -6,10 +6,15 @@
 (defparameter *simplifiers* (make-hash-table))
 
 (defmacro define-simplifier (name (uops) &body body)
-  "Defines an uops simplifier"
+  "
+## [macro] define-simplifier
+
+Defines a simplifier which rewrites the DAG graph based on the rule.
+TODO: Docs
+"
   `(setf (gethash ',name *simplifiers*) #'(lambda (,uops) ,@body)))
 
-;; TODO: Value -> Users
+;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ;; (A * B) + C -> MulADD(A, B, C)
 (define-simplifier MulAdd (uops)
@@ -41,6 +46,8 @@
 	   :op-type :muladd))
 	 (nthcdr 2 uops)))))))
 
+;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 (defun apply-simplifier (uops simplifier &aux (changed-p nil))
   (declare (type list uops)
 	   (type function simplifier))
@@ -53,8 +60,15 @@
   (values changed-p uops))
 
 (defun uops-simplify (uops &aux (changed nil))
-  (declare (type list uops))
+  "
+## [function] uops-simplify
 
+Simplifies the uops. In the stage of simplifying the DAG,
+the following optimizations are performed iteratively:
+- removal of unused graphs
+- graph fusion.
+"
+  (declare (type list uops))
   (maphash
    #'(lambda (name simplifier)
        (declare (ignore name))
@@ -66,3 +80,5 @@
   (if changed
       (uops-simplify uops)
       uops))
+
+
