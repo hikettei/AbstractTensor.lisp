@@ -9,11 +9,17 @@
    
    )
   (:export
+   #:uops-simplify
+   #:define-simplifier)
+  
+  (:export
    #:Range
    #:make-range
    #:range-id
    #:range-from
    #:range-to
    #:range-by))
+
+(in-package :abstracttensor/engine)
 
 

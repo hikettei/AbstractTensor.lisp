@@ -8,6 +8,7 @@
    "abstracttensor.ir"
    "abstracttensor.engine"
    "abstracttensor.lang")
-  :components
-  ())
+  :in-order-to
+  ((test-op
+    (asdf:test-op "abstracttensor.engine"))))
 

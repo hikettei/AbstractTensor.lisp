@@ -17,9 +17,10 @@
   (let* ((path (clingon:getopt cmd :input))
 	 (composite (aten/lang:composite-from-file path)))
     (print
-     (aten/lang:trace-uops
-      (aten/ir:composite-inputs composite)
-      (read-from-string (aten/ir:composite-code composite))))))
+     (aten/engine:uops-simplify
+      (aten/lang:trace-uops
+       (aten/ir:composite-inputs composite)
+       (read-from-string (aten/ir:composite-code composite)))))))
 
 (defun caten/options ()
   (list

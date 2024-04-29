@@ -5,56 +5,61 @@
 
 (defparameter *simplifiers* (make-hash-table))
 
-(defmacro define-simplifier (name &key (trigger) (rewriter))
-  `(progn
-     (setf (gethash ',name *simplifiers*)
-	   (cons #'(lambda ,@trigger) #'(lambda ,@rewriter)))))
+(defmacro define-simplifier (name (uops) &body body)
+  "Defines an uops simplifier"
+  `(setf (gethash ',name *simplifiers*) #'(lambda (,uops) ,@body)))
 
-(define-simplifier MulAdd
-  :trigger
-  ((uops)
-   (let ((add (first  uops))
-	 (mul (second uops)))
-     (and
-      (typep add 'UOps-ALU)
-      (typep mul 'UOps-ALU)
-      (eql (uop-alu-op-type add) :+)
-      (eql (uop-alu-op-type mul) :*)
-      ;;; todo
-      ;; first, write a better graph tracing!!
-      
-      )))
-  :rewriter
-  ((uops)
-   ))
+;; TODO: Value -> Users
 
-(define-simplifier Fold-Constant
-  :trigger
-  ((uops)
-   )
-  :rewriter
-  ((uops)
-   ))
+;; (A * B) + C -> MulADD(A, B, C)
+(define-simplifier MulAdd (uops)
+  (let ((add (second uops))
+	(mul (first  uops)))
+    (and
+     (typep add 'UOp-ALU)
+     (typep mul 'UOp-ALU)
+     (eql (uop-alu-op-type add) :+)
+     (eql (uop-alu-op-type mul) :*)
+     (let ((add-reads  (uop-alu-x-reads  add))
+	   (add-writes (uop-alu-x-writes add))
+	   (mul-reads  (uop-alu-x-reads  mul))
+	   (mul-writes (uop-alu-x-writes mul)))
+       (and
+	(= (length add-reads) (length mul-reads) 2)
+	(= (length add-writes) (length mul-writes) 1)
+	(find (car mul-writes) add-reads :test #'equal)
+	;; Merge and rewrite uops
+	(append
+	 (list
+	  (make-uop-alu
+	   :x-writes add-writes
+	   :x-reads  (loop for arg in add-reads
+			   if (string= arg (car mul-writes))
+			     append mul-reads
+			   else
+			     append (list arg))
+	   :op-type :muladd))
+	 (nthcdr 2 uops)))))))
 
-
-(defun apply-simplifier (uops trigger rewriter &aux (changed-p nil))
+(defun apply-simplifier (uops simplifier &aux (changed-p nil))
   (declare (type list uops)
-	   (type function trigger rewriter))
+	   (type function simplifier))
   (loop with count = (length uops)
 	for i upfrom 0 below count
-	do (if (funcall trigger (nthcdr i uops))
+	do (let ((ref (funcall simplifier (nthcdr i uops))))
+	     (when ref
 	       (setf changed-p t
-		     uops `(,@(subseq uops 0 count) ,@(funcall rewriter (nthcdr i uops))))))		 
+		     uops `(,@(subseq uops 0 i) ,@ref)))))
   (values changed-p uops))
 
 (defun uops-simplify (uops &aux (changed nil))
   (declare (type list uops))
 
   (maphash
-   #'(lambda (name ops)
+   #'(lambda (name simplifier)
        (declare (ignore name))
        (multiple-value-bind (changed-here new-uops)
-	   (apply-simplifier uops (car ops) (cdr ops))
+	   (apply-simplifier uops simplifier)
 	 (setf uops new-uops
 	       changed (or changed changed-here))))
    *simplifiers*)
