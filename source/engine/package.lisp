@@ -17,7 +17,7 @@
 
   ;; Optimizations
   (:export
-   #:uop-optimize
+   #:uops-optimize
    )
   
   (:export

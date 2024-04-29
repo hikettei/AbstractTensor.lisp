@@ -70,10 +70,9 @@
 	 `(,@(apply #'append args)
 	   ,(aten/engine:make-uop-alu
 	     :x-writes
-	     (list
-	      (prog1
-		  (read-counter counter 'alu)
-		(incf (counter-alu counter))))
+	     (prog1
+		 (list (read-counter counter 'alu))
+	       (incf (counter-alu counter)))
 	     :x-reads
 	     (loop for arg in args
 		   append (list (aten/engine:uop->buffer (car (last arg)))))

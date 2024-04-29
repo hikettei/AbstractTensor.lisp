@@ -82,3 +82,7 @@ the following optimizations are performed iteratively:
       uops))
 
 
+(defun %uopgraph-simplify (graph)
+  (declare (type UOpGraph graph))
+  (setf (uopgraph-uops graph) (uops-simplify (uopgraph-uops graph))))
+

@@ -28,19 +28,31 @@
   (defun symb (&rest args)
     (intern (with-output-to-string (c) (dolist (a args) (princ a c))))))
 
-(defmacro define-uop (name docs slots)
+
+(defgeneric uop-writes (uop))
+(defgeneric uop-reads  (uop))
+
+;; When encountered Special UOps (e.g.: Loop), uop-reads/writes should return nil to keep consistency.
+(defmethod uop-writes ((uop t)) nil)
+(defmethod uop-reads ((uop t)) nil)
+
+(defmacro define-uop (name docs slots &key (write) (read))
   `(progn
      (export ',(symb 'make- 'uop- name))
      (defstruct ,(symb 'uop- name)
        ,docs
-       ,@slots)))
+       ,@slots)
+     (defmethod uop-writes ((uop ,(symb 'uop- name))) ,write)
+     (defmethod uop-reads ((uop ,(symb 'uop- name)))  ,read)))
 
-(defmacro define-buffer (name docs slots)
+(defmacro define-buffer (name docs slots &key (write) (read))
   `(progn
      (export ',(symb 'make- name '-buffer))
      (defstruct ,(symb name '-buffer)
        ,docs
-       ,@slots)))
+       ,@slots)
+     (defmethod uop-writes ((buffer ,(symb name '-buffer))) ,write)
+     (defmethod uop-reads  ((buffer ,(symb name '-buffer))) ,read)))
 
 ;; ~~ Buffers ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -51,7 +63,8 @@
 (define-buffer Aref
   "Refs [idx] from [name]"
   ((name nil)
-   (idx nil)))
+   (idx nil))
+  :read (aref-buffer-idx buffer))
 
 (deftype Buffers ()
   `(or Const-Buffer Aref-Buffer string))
@@ -73,7 +86,11 @@ for (iters0=0...X) {
 ```
 "
   ((iters nil :type list)
-   (scope :global :type (and keyword (member :global :local)))))
+   (scope :global :type (and keyword (member :global :local))))
+  ;; [TODO] IteratorがReadsで使ってる変数に依存がある！！！
+  ;; e.g.: range from 0 to a
+  ;; 今は全部整数を仮定してるけど，aとかをreadsにする
+  :write (map 'list #'range-id (uop-loop-iters uop)))
 
 (define-uop EndLoop
   "
@@ -110,18 +127,23 @@ EndIF [ID]
 (define-uop Special
   ""
   ())
+
 (define-uop define-global
   ""
   ())
+
 (define-uop define-var
   ""
   ())
+
 (define-uop define-local
   ""
   ())
+
 (define-uop define-acc
   ""
   ())
+
 (define-uop Load
   "
 ## UOp[Load]
@@ -131,7 +153,9 @@ Load [x1] [x2]
 Stores x2 into x1.
 "
   ((x1 nil :type Buffers)
-   (x2 nil :type Buffers)))
+   (x2 nil :type Buffers))
+  :read  (uop-load-x2 uop)
+  :write (uop-load-x1 uop))
 
 (define-uop Store
   "
@@ -142,9 +166,11 @@ Store [x1] [x2]
 Stores the value of buffer x2 into x1.
 "
   ((x1 nil :type UOp-Load)
-   (x2 nil :type string)))
+   (x2 nil :type string))
+  :read  (uop-store-x2 uop)
+  :write (uop-store-x1 uop))
 
-(define-uop const
+(define-uop Const
   ""
   ())
 
@@ -165,7 +191,9 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 "
   ((x-writes nil :type list)
    (x-reads nil :type list)
-   (op-type nil)))
+   (op-type nil))
+  :read  (uop-alu-x-reads uop)
+  :write (uop-alu-x-writes uop))
 
 (define-uop WMMA
   ""
@@ -174,49 +202,89 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 (define-uop Cast
   ""
   ())
+
 (define-uop bitcast
   ""
   ())
+
 (define-uop gep
   ""
   ())
+
 (define-uop noop
   ""
   ())
 
 (defun uop->buffer (uop)
-  "Receives a UOp and identifies which buffer contains the value."
-  (typecase uop
-    (UOp-Load (uop-load-x1 uop))
-    (UOp-ALU  (car (uop-alu-x-writes uop)))
-    (Buffers uop)
-    (T (error "~a cannot be a buffer." uop))))
+  "Receives a UOp and identifies which buffer contains the value.
+write <- read
+^ this function finds out \"write\" of each uops."
+  (or
+   (let ((out (uop-writes uop)))
+     (if (listp out)
+	 (progn
+	   ;; Note: this assertion could be unnecessary;
+	   ;; note that just the returned value of ALU.writes is multiple.
+	   (assert (= (length out) 1))
+	   (car out))
+	 out))
+   (error "~a cannot be a buffer." uop)))
 
 (defstruct (UOpGraph
 	    (:constructor make-uopgraph (uops)))
-  "A list of UOps"
   (uops uops :type list)
+
+  ;; A pair of: val_XXX and UOP
   (saved-exprs (make-hash-table) :type hash-table))
 
-(defun uop-vars (graph)
+(defun %uopgraph-update-saved-exprs (graph)
   (declare (type UOpGraph graph))
-  (loop for op in (uopgraph-uops graph)
-	if (uop-define-global-p op)
-	  collect op))
+  (let ((new-table (make-hash-table :test 'equal)))
+    (loop for u in (uopgraph-uops graph) do
+      (let ((w (uop-writes u)))
+	;; Collecting a pair of alu and Ops of:
+	;; val_x = xxx
+	;; alu_x = xxx
+	(when (stringp w)
+	  (setf (gethash w new-table) u))
+	(when (listp w)
+	  (dolist (wn w)
+	    (when (stringp wn)
+	      (setf (gethash wn new-table) u))))))
+    (setf (uopgraph-saved-exprs graph) new-table)))		   
 
-(defun uop-optimize (uops)
+;;(defun uop-vars (graph)
+;;  (declare (type UOpGraph graph))
+;;  (loop for op in (uopgraph-uops graph)
+;;	if (uop-define-global-p op)
+;;	  collect op))
+
+(defun uops-optimize (uops)
   "## [function] uop-optimize
 Returns a list of optimized uops graph
 "
   (declare (type list uops))
 
+  ;; Here, we are going to call a set of optimization techniques. Function defined with % is destructive.
   ;; A lot of optimization stuffs are behind
   ;; - ./uops-simplifier.lisp (DAG Fusion, Constant Folding, etc)
   ;; - ./uops-optimizer.lisp  (Unsafe Optimizations, Loop Optimization Techniques, etc)
-  (let* ((uops   (uops-simplify uops))
-	 (graph  (make-uopgraph uops))
-	 ;; First, optimizes the iterations
-	 (graph1 (uops-optimize-loops graph)))
+  (let* ((graph  (make-uopgraph uops)))
 
-    graph1
+    ;; [./uops-simplifier.lisp]
+    ;; Simplifies the DAG Graph.
+    (%uopgraph-simplify           graph)
+    ;; Update the saved-expr table.
+    (%uopgraph-update-saved-exprs graph)
+
+    ;;(maphash
+    ;; #'(lambda (k v)
+    ;;	 (format t "~a -> ~a~%" k v))
+    ;;   (uopgraph-saved-exprs graph))
+
+    ;;[./uops-optimizer.lisp]
+    ;; Applies loop-oriented optimization techniques
+    (%uops-optimize-loops graph)
+    
+    graph
     ))
