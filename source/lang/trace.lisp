@@ -76,7 +76,7 @@
 		(incf (counter-alu counter))))
 	     :x-reads
 	     (loop for arg in args
-		   collect (aten/engine:uop->buffer (car (last arg))))
+		   append (list (aten/engine:uop->buffer (car (last arg)))))
 	     :op-type (intern (symbol-name car) "KEYWORD")))))
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
@@ -98,10 +98,10 @@
 
       ((list 'setf to what)
        (let ((to   (explore to))
-	     (what (explore what))) 
+	     (what (explore what)))
 	 `(,@what
 	   ,(aten/engine:make-uop-store
-	     :x1 to
+	     :x1 (car to)
 	     :x2 (aten/engine:uop->buffer (car (last what)))))))
 
       ;; (if exp then &optional else)

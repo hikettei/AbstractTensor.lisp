@@ -11,6 +11,7 @@
 (in-package :abstracttensor/engine)
 
 (defstruct Range
+  "Range: for (int id=from; from<to; id+=by)"
   (id)
   (from)
   (to)
@@ -23,12 +24,10 @@
 	  (range-to obj)
 	  (range-by obj)))
 
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun symb (&rest args)
     (intern (with-output-to-string (c) (dolist (a args) (princ a c))))))
 
-;; RAW DependencyをLOOPとかも読めるようにするべきだと思う
 (defmacro define-uop (name docs slots)
   `(progn
      (export ',(symb 'make- 'uop- name))
@@ -46,7 +45,7 @@
 ;; ~~ Buffers ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (define-buffer Const
-  "Loads a constant value."
+  "Loads a constant scalar value."
   ((value nil)))
 
 (define-buffer Aref
@@ -94,7 +93,8 @@ As of now, option is one of following:
 ## Uop[If]
 ```
 If [Condition] [ID]
-```"
+```
+"
   ((condition nil)
    (id nil)))
 
@@ -133,26 +133,29 @@ Stores x2 into x1.
   ((x1 nil :type Buffers)
    (x2 nil :type Buffers)))
 
-(define-uop store
+(define-uop Store
   "
 ## UOp[Store]
 ```
 Store [x1] [x2]
 ```
-Stores the value of x2 into x1.
+Stores the value of buffer x2 into x1.
 "
-  ((x1 nil)
-   (x2 nil)))
+  ((x1 nil :type UOp-Load)
+   (x2 nil :type string)))
 
 (define-uop const
   ""
   ())
+
 (define-uop barrier
   ""
   ())
+
 (define-uop PHI
   ""
   ())
+
 (define-uop ALU
   "
 ## UOp[ALU]
@@ -184,7 +187,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 (defun uop->buffer (uop)
   (typecase uop
     (UOp-Load (uop-load-x1 uop))
-    (UOp-ALU (uop-alu-x-writes uop))
+    (UOp-ALU  (car (uop-alu-x-writes uop)))
     (Buffers uop)
     (T (error "~a cannot be a buffer." uop))))
 
