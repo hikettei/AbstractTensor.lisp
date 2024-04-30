@@ -45,6 +45,7 @@
 (defmethod uop-writes ((uop t)) nil)
 (defmethod uop-reads ((uop t)) nil)
 
+;; Each time C-c C-x this eval-when form, the macro uopcase is redefined.
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defparameter *uop-features* (make-hash-table)    "HashTable: UOP-NAME  -> (Slots)")
   (defparameter *buffer-features* (make-hash-table) "HashTable: BUFF-NAME -> (Slots)")
@@ -234,33 +235,34 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
   ) ;; eval-when
 
 
-(flet ((uop-typep (name) (symb 'uop- name '-p)))
-  #.`(defmacro uopcase
-	 (keyform
-	  &key
-	    ,@(loop for uop-name being each hash-key of *uop-features*
-		      using (hash-value slots)
-		    collect
-		    `(,uop-name '((,@slots) :default))))
-       "TODO: Docs"
-       `(cond
-	  ,,@(loop for uop-name being each hash-key of *uop-features*
-		     using (hash-value slots)
-		   collect
-		   `(progn
-		      (when (not (= (length ',slots) (length (car ,uop-name))))
-			(warn "[macroexpand] uopcase: the slots and binds for UOp-~a seems incorrect.~%  Expected: ~a~%  Butgot: ~a~%" ',uop-name ',slots (car ,uop-name)))
-		      `((,(uop-typep ',uop-name) ,keyform)
-			(let (,@(map
-				  'list
-				  #'(lambda (bind slot-name)
-				      `(,bind (slot-value ,keyform ',slot-name)))
-				  (car ,uop-name) ',slots))
-			  ,@(cdr ,uop-name)))))
-	  (T (error "~a is not a family of UOps." ,keyform)))))
+(macrolet ((with-package (&body body) `(let ((*package* (find-package :abstracttensor/engine))) ,@body)))
+  (flet ((uop-typep (name) (with-package (symb 'uop- name '-p))))
+    #.`(defmacro uopcase
+	   (keyform
+	    &key
+	      ,@(loop for uop-name being each hash-key of *uop-features*
+			using (hash-value slots)
+		      collect
+		      `(,uop-name '((,@slots) :default))))
+	 "TODO: Docs"
+	 `(cond
+	    ,,@(loop for uop-name being each hash-key of *uop-features*
+		       using (hash-value slots)
+		     collect
+		     `(progn
+			(when (not (= (length ',slots) (length (car ,uop-name))))
+			  (warn "[macroexpand] uopcase: the slots and binds for UOp-~a seems incorrect.~%  Expected: ~a~%  Butgot: ~a~%" ',uop-name ',slots (car ,uop-name)))
+			`((,(uop-typep ',uop-name) ,keyform)
+			  (let (,@(map
+				    'list
+				    #'(lambda (bind slot-name)
+					`(,bind (slot-value ,keyform ',slot-name)))
+				    (car ,uop-name) ',slots))
+			    (declare (ignorable ,@',slots))
+			    ,@(cdr ,uop-name)))))
+	    (T (error "~a is not a family of UOps." ,keyform))))))
 
 ;; ~~ UOps ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 (defun uop->buffer (uop)
   "Receives a UOp and identifies which buffer contains the value.

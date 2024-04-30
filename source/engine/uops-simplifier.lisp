@@ -10,7 +10,9 @@
 ## [macro] define-simplifier
 
 Defines a simplifier which rewrites the DAG graph based on the rule.
-TODO: Docs
+TODO:
+- Docs
+- define-simplifierにドキュメントの機能をつける+自動生成
 "
   `(setf (gethash ',name *simplifiers*) #'(lambda (,uops) ,@body)))
 
@@ -80,7 +82,6 @@ the following optimizations are performed iteratively:
   (if changed
       (uops-simplify uops)
       uops))
-
 
 (defun %uopgraph-simplify (graph)
   (declare (type UOpGraph graph))

@@ -4,6 +4,19 @@
 (defpackage :abstracttensor/engine
   (:use :cl)
   (:nicknames aten/engine)
+
+  ;; UI
+  (:export
+   #:declare-runtime
+   #:realize
+   )
+
+  ;; UOpGraph
+  (:export
+   #:UOpGraph
+   #:UOpGraph-uops
+   #:render)
+  
   (:export
    #:uop->buffer
    
@@ -19,6 +32,10 @@
   (:export
    #:uops-optimize
    )
+
+  ;; UOps
+  (:export
+   #:uopcase)
   
   (:export
    #:Range

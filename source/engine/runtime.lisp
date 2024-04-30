@@ -5,7 +5,7 @@
 
 (defparameter *runtime* nil
   "## [parameter] *runtime*
-Set RuntimeConfig to use")
+Set RuntimeConfig to use.")
 
 (defstruct (RuntimeConfig
 	    (:constructor make-runtime (name
@@ -20,9 +20,18 @@ Set RuntimeConfig to use")
   (upcasted upcasted :type fixnum)
   (dont-use-locals dont-use-locals :type boolean))
 
-(defmacro with-temporary-runtime ((name &rest args) &body body)
-  `(let ((*runtime* (make-runtime ,name ,@args)))
-     ,@body))
+(defmacro declare-runtime (runtime-id &rest args)
+  "[TODO] Docs"
+  `(setf *runtime* (make-runtime ,runtime-id ,@args)))
 
-(defgeneric dispatch-runtime (id))
+(defgeneric render (backend uop-graph)
+  (:documentation "[TODO] Renders the uop-graph"))
+
+(defun realize (uop-graph)
+  "[TODO] Doc finsih the complitaion."
+  (declare (type UOpGraph uop-graph))
+  (render
+   (runtimeconfig-name *runtime*)
+   uop-graph))
+
 

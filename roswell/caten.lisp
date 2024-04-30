@@ -15,12 +15,19 @@
 
 (defun caten/handler (cmd)
   (let* ((path (clingon:getopt cmd :input))
-	 (composite (aten/lang:composite-from-file path)))
-    (print
-     (aten/engine:uops-optimize
-      (aten/lang:trace-uops
-       (aten/ir:composite-inputs composite)
-       (read-from-string (aten/ir:composite-code composite)))))))
+	 (runtime (clingon:getopt cmd :runtime)))
+
+    ;; Runtime Configuration
+    (load runtime)
+    
+    (let* ((composite (aten/lang:composite-from-file path))
+	   (uops      (aten/lang:trace-uops
+		       (aten/ir:composite-inputs composite)
+		       (read-from-string (aten/ir:composite-code composite))))
+	   (graph     (aten/engine:uops-optimize uops))
+	   (code      (aten/engine:realize graph)))
+      (print code)
+      (print graph))))
 
 (defun caten/options ()
   (list
@@ -29,7 +36,13 @@
     :description "toml file to compile"
     :short-name #\i
     :long-name "input"
-    :key :input)))
+    :key :input)
+   (clingon:make-option
+    :string
+    :description "a .lisp file to use as a runtime"
+    :short-name #\r
+    :long-name "runtime"
+    :key :runtime)))
 
 (defun caten/command ()
   ;; Usage (WIP)
