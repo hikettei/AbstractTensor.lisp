@@ -123,7 +123,7 @@
 	 (assert (aten/engine::uop-load-p (car to)) () "Assertion failed: X = Y; X must be a LOAD.")
 	 `(,@what
 	   ,(aten/engine:make-uop-store
-	     :x1 (aten/engine::uop-load-x2 (car to))
+	     :x1 (aten/engine::uop-load-x2 (car (last to)))
 	     :x2 (aten/engine:uop->buffer  (car (last what)))))))
 
       ;; (if exp then &optional else)
