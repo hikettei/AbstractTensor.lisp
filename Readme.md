@@ -42,6 +42,7 @@
     - Training/Inferenceの実行は，datenにGraphを記述することで実行できるようにする。
 - [ ] randn/betaとかもコンパイルして生成
 - winograd
+- [ ] runtime template (ros create tekina)
 
 - [ ] TinygradのScheduling, Loweringをもってくる。
 - コンセプトはこう:
@@ -58,6 +59,14 @@
         - Composite <-> Compositeの箇所でSliceは挟まないから，一旦Composite内部で考えればよさそう？
 	- 要は早いConv2DのCompositeさえ入手できれば(PyTorchがそうなように) 十分な速度を期待できる。
 	- Scalarに対するCompilerもつくる！
+
+- [ ] ElementWiseな関数をFlattenする処理 ->
+```
+(defun sin (x)
+if x is a base tensor -> x.flatten().sin().reshape_as_it_was()
+if x is a view -> x.sin()
+)
+```
 	
 - [ ] daten.ros, abstracttensor/high-level/autograd, abstracttensor/high-level/quantization, nn, etc...
 

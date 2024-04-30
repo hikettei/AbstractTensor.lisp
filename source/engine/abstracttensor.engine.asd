@@ -6,10 +6,17 @@
   :serial t
   :components
   ((:file "package")
+
+   ;; *uops must be loaded first* because when this file initialized
+   ;; it also creates *uop-features*, and *buffer-features*
+   ;; and, runtime.lisp depends on it. (when compile-toplevel)
+   
    (:file "uops")
    (:file "schedule")
+   (:file "runtime")
    (:file "uops-simplifier")
-   (:file "uops-optimizer"))
+   (:file "uops-optimizer")
+   (:file "uops-linearizer"))
   :in-order-to ((test-op (asdf:test-op "abstracttensor.engine/test"))))
 
 (asdf:defsystem "abstracttensor.engine/test"

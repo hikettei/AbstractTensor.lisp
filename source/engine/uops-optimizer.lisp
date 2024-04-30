@@ -115,11 +115,19 @@
 			    (return-from dep-check))))))))
     (setf (uopgraph-uops graph) (alexandria:flatten loop-stacks))))
 
+(defun %uops-simplify-loops (graph)
+  (declare (type UOpGraph graph))
+
+  )
 
 (defun %uops-optimize-loops (graph)
   (declare (type UOpgraph graph))
 
   ;; Fix loop scope, push uops upward out of loop if it does not depend on the loop
-
   (%uops-fix-loop-scope graph)
+
+  ;; Simplifies the loop
+  (%uops-simplify-loops graph)
+
+  ;; fix-to-store-directly (vectorize)
   )
