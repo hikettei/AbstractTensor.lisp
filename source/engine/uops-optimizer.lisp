@@ -49,7 +49,7 @@
 
 (defun recursively-find-parents (graph value)
   (declare (type UOpGraph graph))
-
+  
   (let ((keys (typecase value
 		(string (list value))
 		(symbol (list value))
@@ -76,6 +76,27 @@
 	  else
 	    append (recursively-find-parents graph (uop-reads k)))))
 
+(defun recursively-find-deps (uops value)
+  "Recursively explores what ids the value depends on."
+  (declare (type list uops))
+
+  (when (not (typep value 'graph-id))
+    (return-from recursively-find-deps nil))
+  
+  (let* ((readers (uops/user->values uops value))
+	 (buffers (map 'list #'uop->buffer readers)))
+    (append
+     buffers
+     (apply
+      #'append
+      (map
+       'list
+       #'(lambda (x)
+	   (when (not (equal x value))
+	     (recursively-find-deps uops x)))
+       buffers)))))
+
+;; deprecated?
 (defun compute-determined-iters (uops)
   (let ((iters))
     (dolist (uop uops)

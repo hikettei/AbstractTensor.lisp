@@ -47,13 +47,18 @@
 ;; When encountered Special UOps (e.g.: Loop), uop-reads/writes should return nil to keep consistency.
 (defmethod uop-writes ((uop t)) nil)
 (defmethod uop-reads ((uop t)) nil)
+
 (defun eliminate-buffer (list f)
   ;; Recursively explores until buffer elimiated
-  (if (every #'(lambda (x) (typep x 'graph-id)) list)
-      list
-      (alexandria:flatten
-       (map 'list #'(lambda (x) (if (typep x 'graph-id) x (funcall f x))) list))))
-	   
+  (alexandria:flatten
+   (map
+    'list
+    #'(lambda (x)
+	(if (and (typep x 'buffers) (not (typep x 'graph-id)))
+	    (funcall f x)
+	    x))
+    list)))
+
 (defmethod uop-writes :around (uop)
   (let ((result (call-next-method)))
     (eliminate-buffer
@@ -69,7 +74,6 @@
 	 result
 	 (list result))
      #'uop-reads)))
-
 
 ;; Each time C-c C-x this eval-when form, the macro uopcase is redefined.
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -104,7 +108,23 @@
     "Loads a constant scalar value."
     ((value nil)
      (type :float :type keyword)
-     (pointer-p nil :type boolean)))
+     (pointer-p nil :type boolean))
+    :read (typecase (const-buffer-value buffer)
+	    (Range
+	     (with-slots ((id id) (from from) (to to) (by by)) (const-buffer-value buffer)
+	       (list
+		id
+		(when (not (numberp from))
+		  from)
+		(when (not (numberp to))
+		  to)
+		(when (not (numberp by))
+		  by))))
+	    (Symbol  (list (const-buffer-value buffer)))
+	    (String  (list (const-buffer-value buffer))))
+    :write (typecase (const-buffer-value buffer)
+	     (Range
+	      (list (range-id (const-buffer-value buffer))))))
 
   (define-buffer Aref
     "Refs [idx] from [name]"
@@ -125,10 +145,9 @@ Loop iter, scope.
 "
     ((iters nil :type Range)
      (scope :global :type (and keyword (member :global :local))))
-    ;; [TODO] IteratorがReadsで使ってる変数に依存がある！！！
-    ;; e.g.: range from 0 to a
-    ;; 今は全部整数を仮定してるけど，aとかをreadsにする
-    :write (list (range-id (uop-loop-iters uop))))
+
+    :write (list (range-id (uop-loop-iters uop)))
+    :read  (uop-reads (uop-loop-iters uop)))
 
   (define-uop EndLoop
     "
@@ -141,7 +160,9 @@ As of now, option is one of following:
 - :none
 "
     ((iters nil :type Range)
-     (option :none :type (and keyword (member :none :reduce)))))
+     (option :none :type (and keyword (member :none :reduce))))
+    :write nil
+    :read  nil)
 
   (define-uop If
     "
@@ -204,10 +225,11 @@ Store [x1] [x2]
 Stores the value of buffer x2 into x1.
 "
     ((x1 nil :type Buffers)
-     (x2 nil :type string))
+     (x2 nil :type String))
     :read  (uop-store-x2 uop)
     :write (uop-store-x1 uop))
 
+  ;; Not anymore used?
   (define-uop Const
     ""
     ())
@@ -314,6 +336,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
   "Receives a UOp and identifies which buffer contains the value.
 write <- read
 ^ this function finds out \"write\" of each uops."
+  
   (or
    (let ((out (uop-writes uop)))
      (if (listp out)
@@ -322,9 +345,9 @@ write <- read
 	   ;; note that just the returned value of ALU.writes is multiple.
 	   ;; (assert (= (length out) 1))
 	   (car out))
-	 out))
+	 (eliminate-buffer out #'uop-writes)))
    ;;(error "~a cannot be a buffer." uop)
-   uop))
+   nil))
 
 (defstruct (UOpGraph
 	    (:constructor make-uopgraph (uops)))

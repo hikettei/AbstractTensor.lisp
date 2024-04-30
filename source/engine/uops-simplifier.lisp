@@ -22,6 +22,7 @@
 	    for position fixnum upfrom 0
 	    for reads  = (uop-reads u)
 	    for writes = (uop-writes u)
+	     do (print "+++") (print u) (print (recursively-find-deps uops (uop->buffer u)))
 	    do (dolist (w writes) (push w seen))
 	    if (seen-p reads) do
 	      (push u new-uops)
@@ -31,11 +32,11 @@
 		     if (seen-p reads-old)
 		       do (push u-old new-uops)
 			  (setf stashed (remove u-old stashed :key #'cdr :test #'equal)))))
-
+    
     (when (not (= (length uops) (length new-uops)))
       (warn "resolve-isolated-uops: these UOPs are isolated from the DAG and removed:~%~a~%If your compiled code will not work well, that could be due to a bug of simplifiers." stashed))
     
-    (reverse new-uops)))
+    `(,@(map 'list #'cdr stashed) ,@(reverse new-uops))))
 
 (defmacro define-simplifier (name (uops) &body body)
   "

@@ -124,7 +124,7 @@
 	 `(,@what
 	   ,(aten/engine:make-uop-store
 	     :x1 (aten/engine::uop-load-x2 (car to))
-	     :x2 (aten/engine:uop->buffer (car (last what)))))))
+	     :x2 (aten/engine:uop->buffer  (car (last what)))))))
 
       ;; (if exp then &optional else)
 
