@@ -18,6 +18,7 @@
 	 (runtime (clingon:getopt cmd :runtime)))
 
     ;; Runtime Configuration
+    ;; [TODO] If runtime not found, search from ./runtimes
     (load runtime)
     
     (let* ((composite (aten/lang:composite-from-file path))
@@ -27,7 +28,8 @@
 	   (graph     (aten/engine:uops-optimize uops))
 	   (code      (aten/engine:realize graph)))
       (print code)
-      (print graph))))
+      (print graph)
+      )))
 
 (defun caten/options ()
   (list

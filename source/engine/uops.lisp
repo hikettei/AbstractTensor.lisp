@@ -103,12 +103,12 @@ for (iters0=0...X) {
             ....
 ```
 "
-    ((iters nil :type list)
+    ((iters nil :type Range)
      (scope :global :type (and keyword (member :global :local))))
     ;; [TODO] IteratorがReadsで使ってる変数に依存がある！！！
     ;; e.g.: range from 0 to a
     ;; 今は全部整数を仮定してるけど，aとかをreadsにする
-    :write (map 'list #'range-id (uop-loop-iters uop)))
+    :write (list (range-id (uop-loop-iters uop))))
 
   (define-uop EndLoop
     "
@@ -120,7 +120,7 @@ As of now, option is one of following:
 - :reduce
 - :none
 "
-    ((iters nil :type list)
+    ((iters nil :type Range)
      (option :none :type (and keyword (member :none :reduce)))))
 
   (define-uop If
@@ -243,7 +243,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 	      ,@(loop for uop-name being each hash-key of *uop-features*
 			using (hash-value slots)
 		      collect
-		      `(,uop-name '((,@slots) :default))))
+		      `(,uop-name '((,@slots) (warn "[uopcase]: UOp ~a fell through." ',uop-name)))))
 	 "TODO: Docs"
 	 `(cond
 	    ,,@(loop for uop-name being each hash-key of *uop-features*

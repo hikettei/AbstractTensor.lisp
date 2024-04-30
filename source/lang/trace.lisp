@@ -35,11 +35,11 @@
        (setf (gethash bind scope) (spawn-range bind 0 count 1))
        (prog1
 	   `(,(aten/engine:make-uop-loop
-	       :iters (list (getscope bind))
+	       :iters (getscope bind)
 	       :scope :global)
 	     ,@(apply #'append (map 'list #'explore (cddr form)))
 	     ,(aten/engine:make-uop-endloop
-	       :iters (list (getscope bind))
+	       :iters (getscope bind)
 	       :option :none))
 	 ;; Unbinds
 	 (remhash bind scope)))
@@ -51,11 +51,11 @@
        (setf (gethash bind scope) (spawn-range bind from to by))
        (prog1
 	   `(,(aten/engine:make-uop-loop
-	       :iters (list (getscope bind))
+	       :iters (getscope bind)
 	       :scope :global)
 	     ,@(apply #'append (map 'list #'explore (cddr form)))
 	     ,(aten/engine:make-uop-endloop
-	       :iters (list (getscope bind))
+	       :iters (getscope bind)
 	       :option :none))
 	 (remhash bind scope)))
       ;; (- a) -> -a
