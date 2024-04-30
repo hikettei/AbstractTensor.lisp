@@ -2,6 +2,7 @@
 (in-package :abstracttensor/lang)
 
 (defstruct Counter
+  "gensym alternative"
   (val 0 :type fixnum)
   (alu 0 :type fixnum))
 
@@ -33,32 +34,47 @@
       ((list* 'dotimes (list bind count) _)
 
        ;; binds the iterator variables into bind
-       (setf (gethash bind scope) (spawn-range bind 0 count 1))
-       (prog1
-	   `(,(aten/engine:make-uop-loop
-	       :iters (getscope bind)
-	       :scope :global)
-	     ,@(apply #'append (map 'list #'explore (cddr form)))
-	     ,(aten/engine:make-uop-endloop
-	       :iters (getscope bind)
-	       :option :none))
-	 ;; Unbinds
-	 (remhash bind scope)))
+       (let* ((count (explore count))
+	      (count-idx (aten/engine:uop->buffer (car (last count))))
+	      (range (spawn-range bind 0 count-idx 1)))
+	 (setf (gethash bind scope) range)
+	 (prog1
+	     `(,@count
+	       ,(aten/engine:make-uop-loop
+		 :iters range
+		 :scope :global)
+	       ,@(apply #'append (map 'list #'explore (cddr form)))
+	       ,(aten/engine:make-uop-endloop
+		 :iters range
+		 :option :none))
+	   ;; Unbinds
+	   (remhash bind scope))))
 
       ;; Iteration over single variable
       ;; (for (x from to by)
       ;; ...)
+      ;; TODO: Update
       ((list* 'for (list bind from to by) _)
-       (setf (gethash bind scope) (spawn-range bind from to by))
-       (prog1
-	   `(,(aten/engine:make-uop-loop
-	       :iters (getscope bind)
-	       :scope :global)
-	     ,@(apply #'append (map 'list #'explore (cddr form)))
-	     ,(aten/engine:make-uop-endloop
-	       :iters (getscope bind)
-	       :option :none))
-	 (remhash bind scope)))
+       (let* ((from-uop (explore from))
+	      (to-uop   (explore to))
+	      (by-uop   (explore by))
+	      (from-buff (aten/engine:uop->buffer (car (last from-uop))))
+	      (to-buff   (aten/engine:uop->buffer (car (last to-uop))))
+	      (by-buff   (aten/engine:uop->buffer (car (last by-uop))))
+	      (range    (spawn-range bind from-buff to-buff by-buff)))
+	 (setf (gethash bind scope) range)
+	 (prog1
+	     `(,@from-uop
+	       ,@to-uop
+	       ,@by-uop
+	       ,(aten/engine:make-uop-loop
+		 :iters (getscope bind)
+		 :scope :global)
+	       ,@(apply #'append (map 'list #'explore (cddr form)))
+	       ,(aten/engine:make-uop-endloop
+		 :iters (getscope bind)
+		 :option :none))
+	   (remhash bind scope))))
       ;; (- a) -> -a
       ((list '- form)
        (error "not ready")
@@ -85,10 +101,10 @@
       
       ((list (or 'incf 'decf 'mulcf 'divcf) to what)
        (let* ((op (case (car form)
-		   (incf '+)
-		   (decf '-)
-		   (mulcf '*)
-		   (divcf '/)))
+		    (incf '+)
+		    (decf '-)
+		    (mulcf '*)
+		    (divcf '/)))
 	      (to-aref-p (and (listp to) (eql (car to) 'aref)))
 	      (to-buffer (if to-aref-p
 			     `(aref ,@(cdr to))
@@ -104,9 +120,10 @@
       ((list 'setf to what)
        (let ((to   (explore to))
 	     (what (explore what)))
+	 (assert (aten/engine::uop-load-p (car to)) () "Assertion failed: X = Y; X must be a LOAD.")
 	 `(,@what
 	   ,(aten/engine:make-uop-store
-	     :x1 (car to)
+	     :x1 (aten/engine::uop-load-x2 (car to))
 	     :x2 (aten/engine:uop->buffer (car (last what)))))))
 
       ;; (if exp then &optional else)
@@ -123,16 +140,18 @@
       ;; aref -> A[idx]
       ;; Return: Buffer
       ((list* 'aref (type symbol) _)
-       (let* (;;subscripts (map 'list #'explore (cddr form)))
+       (let* ((subscripts (map 'list #'explore (cddr form)))
 	      (buffer (aten/engine:make-aref-buffer
-		       :idx  (cddr form) ;;subscripts
+		       :idx  (map 'list #'(lambda (x) (aten/engine:uop->buffer (car (last x)))) subscripts)
 		       :name (getscope (second form)))))
-	 (list
-	  (aten/engine:make-uop-load
-	   :x1 (prog1
-		   (read-counter counter 'val)
-		 (incf (counter-val counter)))
-	   :x2 buffer))))
+	 (append
+	  (alexandria:flatten subscripts)
+	  (list
+	   (aten/engine:make-uop-load
+	    :x1 (prog1
+		    (read-counter counter 'val)
+		  (incf (counter-val counter)))
+	    :x2 buffer)))))
 
       ;; funcall. (car cdr)
       ((list* (type symbol) _)
@@ -168,7 +187,10 @@
   (declare (type list inputs body))
 
   (dolist (input inputs)
-    (setf (gethash (intern (symbol-name (aten/ir:aten-id input))) scope) input))
+    (setf (gethash (intern (symbol-name (aten/ir:aten-id input))) scope) input)
+    ;; Register symbols
+    (dolist (shape (aten/ir:aten-shape input))
+      (setf (gethash (intern (symbol-name shape)) scope) shape)))
   
   (graph-funcall counter scope body))
 

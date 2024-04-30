@@ -101,7 +101,7 @@ Example:
 		   (declare (type string str))
 		   ;; name = 0~9, a-z, A-Z, - or _
 		   (if (cl-ppcre:all-matches "[0-9|a-z|A-Z|_|-]" str)
-		       (the keyword (intern str "KEYWORD"))
+		       (the keyword (intern (string-upcase str) "KEYWORD"))
 		       nil))
 		 (broadcast (str)
 		   (declare (type (simple-array character (*)) str))
@@ -187,7 +187,7 @@ Example:
       (when (not (= 0 (mod (length where) 3)))
 	(error "where parse error"))
 
-      ;; TODO 
+      ;; TODO
       (let ((where-pretty
 	      (loop for i upfrom 0 below (length where) by 3
 		    for name = (nth (+ 0 i) where)

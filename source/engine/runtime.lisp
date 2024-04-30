@@ -24,14 +24,15 @@ Set RuntimeConfig to use.")
   "[TODO] Docs"
   `(setf *runtime* (make-runtime ,runtime-id ,@args)))
 
-(defgeneric render (backend uop-graph)
+(defgeneric render-graph (backend uop-graph)
   (:documentation "[TODO] Renders the uop-graph"))
+
+(defgeneric render-buffer (backend buffer)
+  (:documentation "[TODO]"))
 
 (defun realize (uop-graph)
   "[TODO] Doc finsih the complitaion."
   (declare (type UOpGraph uop-graph))
-  (render
+  (render-graph
    (runtimeconfig-name *runtime*)
    uop-graph))
-
-

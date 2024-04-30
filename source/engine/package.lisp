@@ -15,7 +15,8 @@
   (:export
    #:UOpGraph
    #:UOpGraph-uops
-   #:render)
+   #:render-graph
+   #:render-buffer)
   
   (:export
    #:uop->buffer
@@ -35,7 +36,8 @@
 
   ;; UOps
   (:export
-   #:uopcase)
+   #:uopcase
+   #:buffercase)
   
   (:export
    #:Range

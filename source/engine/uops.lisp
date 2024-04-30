@@ -102,7 +102,9 @@
 
   (define-buffer Const
     "Loads a constant scalar value."
-    ((value nil)))
+    ((value nil)
+     (type :float :type keyword)
+     (pointer-p nil :type boolean)))
 
   (define-buffer Aref
     "Refs [idx] from [name]"
@@ -118,15 +120,7 @@
     "
 ## Uop[Loop]
 ```
-Loop [iters0 iters1 iters2 ...], scope.
-```
-
-(e.g.: translated into:)
-```
-for (iters0=0...X) {
-    for (iters1=0...Y) {
-        for(iters2=0..Z) {
-            ....
+Loop iter, scope.
 ```
 "
     ((iters nil :type Range)
@@ -209,7 +203,7 @@ Store [x1] [x2]
 ```
 Stores the value of buffer x2 into x1.
 "
-    ((x1 nil :type UOp-Load)
+    ((x1 nil :type Buffers)
      (x2 nil :type string))
     :read  (uop-store-x2 uop)
     :write (uop-store-x1 uop))
@@ -262,7 +256,8 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 
 
 (macrolet ((with-package (&body body) `(let ((*package* (find-package :abstracttensor/engine))) ,@body)))
-  (flet ((uop-typep (name) (with-package (symb 'uop- name '-p))))
+  (flet ((uop-typep (name)   (with-package (symb 'uop- name '-p)))
+	 (buffer-typep (name) (with-package (symb name '-buffer-p))))
     #.`(defmacro uopcase
 	   (keyform
 	    &key
@@ -284,9 +279,34 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 				    #'(lambda (bind slot-name)
 					`(,bind (slot-value ,keyform ',slot-name)))
 				    (car ,uop-name) ',slots))
-			    (declare (ignorable ,@',slots))
+			    ;;(declare (ignorable ,@',slots))
 			    ,@(cdr ,uop-name)))))
-	    (T (error "~a is not a family of UOps." ,keyform))))))
+	    (T (error "~a is not a family of UOps." ,keyform))))
+
+    #.`(defmacro buffercase
+	   (keyform
+	    &key
+	      ,@(loop for buffer-name being each hash-key of *buffer-features*
+			using (hash-value slots)
+		      collect
+		      `(,buffer-name '((,@slots) (warn "[buffercase]: Buffer ~a fell through." ',buffer-name)))))
+	 "TODO: Docs"
+	 `(cond
+	    ,,@(loop for buffer-name being each hash-key of *buffer-features*
+		       using (hash-value slots)
+		     collect
+		     `(progn
+			(when (not (= (length ',slots) (length (car ,buffer-name))))
+			  (warn "[macroexpand] buffercase: the slots and binds for Buffer-~a seems incorrect.~%  Expected: ~a~%  Butgot: ~a~%" ',buffer-name ',slots (car ,buffer-name)))
+			`((,(buffer-typep ',buffer-name) ,keyform)
+			  (let (,@(map
+				    'list
+				    #'(lambda (bind slot-name)
+					`(,bind (slot-value ,keyform ',slot-name)))
+				    (car ,buffer-name) ',slots))
+			    ;;(declare (ignorable ,@',slots))
+			    ,@(cdr ,buffer-name)))))
+	    (T (error "~a is not a family of Buffers." ,keyform))))))
 
 ;; ~~ UOps ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -364,8 +384,7 @@ Returns a list of optimized uops graph
 
     ;; [./uops-optimizer.lisp]
     ;; Applies loop-oriented optimization techniques
-    (%uops-optimize-loops graph)
-    
+    (%uops-optimize-loops graph) 
     graph
     ))
 

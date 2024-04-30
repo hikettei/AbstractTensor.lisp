@@ -8,10 +8,8 @@ outputs = ["C"]
 
 [implementation]
 code = """
-(dotimes (i1 256)
-    (dotimes (j1 256)
-        (dotimes (k1 256)
-	    (setf (aref c i1 k1) 0))
-        (dotimes (k1 256)
+(dotimes (i1 i)
+    (dotimes (j1 i)
+        (dotimes (k1 i)
 	    (incf (aref c i1 k1) (* (aref a i1 j1) (aref b j1 k1))))))
 """

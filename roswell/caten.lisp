@@ -23,7 +23,7 @@
 	 (uops      (aten/lang:trace-uops
 		     (aten/ir:composite-inputs composite)
 		     (read-from-string (aten/ir:composite-code composite))))
-	 (graph     (aten/engine:uops-optimize (print uops)))
+	 (graph     (aten/engine:uops-optimize uops))
 	 (code      (aten/engine:realize graph)))
     (print code)
     (print graph)
