@@ -14,6 +14,7 @@
   (make-range :id id :from from :to to :by by))
 
 
+;; TODO: Replace it with Elegant BNF Parser
 ;; Feature Enhancement
 ;; (op X{Array} Y{Array})
 ;; -> (dotimes (x ...)
@@ -65,7 +66,7 @@
       
       ;; arithmetic
       ((list* (or '+ '- '* '/ '> '>= '< '<= '=) _)
-       (let ((car (car form))
+       (let ((car  (car form))
 	     (args (map 'list #'explore (cdr form))))
 	 `(,@(apply #'append args)
 	   ,(aten/engine:make-uop-alu
@@ -83,16 +84,21 @@
        (error "not ready"))
       
       ((list (or 'incf 'decf 'mulcf 'divcf) to what)
-       (let ((op (case (car form)
+       (let* ((op (case (car form)
 		   (incf '+)
 		   (decf '-)
 		   (mulcf '*)
-		   (divcf '/))))
+		   (divcf '/)))
+	      (to-aref-p (and (listp to) (eql (car to) 'aref)))
+	      (to-buffer (if to-aref-p
+			     `(aref ,@(cdr to))
+			     to)))
+	 
 	 (explore
 	  `(setf
-	    (aref ,@(cdr to))
+	    ,to-buffer
 	    (,op
-	     (aref ,@(cdr to))
+	     ,to-buffer
 	     ,what)))))
 
       ((list 'setf to what)
@@ -144,7 +150,7 @@
 
       ;; variable
       ((type symbol)
-       (let ((val (aten/engine:make-const-buffer :value (getscope (car form)))))
+       (let ((val (aten/engine:make-const-buffer :value (getscope form))))
 	 (list
 	  (aten/engine:make-uop-load
 	   :x1 (prog1
@@ -154,10 +160,8 @@
       
       ;; string
       ;;((type string) (format nil "\"~a\"" form))
-
       (_
-       (warn "metalize-form: Cannot deal with this form: ~a" form)
-       (format nil "~a" form)))))
+       (error "trace-uops: Cannot deal with this form: ~a" form)))))
 
 (defun trace-uops (inputs body &aux (scope (make-hash-table)) (counter (make-counter)))
   "Creates a computation graph from lisp-like DSL"

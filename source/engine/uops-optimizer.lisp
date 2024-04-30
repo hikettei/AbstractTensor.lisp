@@ -6,40 +6,46 @@
 (in-package :abstracttensor/engine)
 
 (defun explore-uopgraph (uops value &key (finder #'uop-writes))
-  (declare (type (or symbol string) value)
-	   (type list uops))
-  (let ((results))
-    (loop for u in uops do
-      (let ((users (funcall finder u)))
-	(typecase users
-	  (string
-	   (when (equal users value)
-	     (push u results)))
-	  (list
-	   (dolist (u1 users)
-	     (when (and (stringp u1) (equal u1 value))
-	       (push u1 results))))
-	  (T
-	   (when (typep users 'uop-load)
-	     (let ((x1 (funcall finder (uop-load-x2 users))))
-	       (dolist (xn x1)
-		 (when (equal xn value)
-		   (push xn results)))))
+  (declare (type list uops))
+  (when (or (symbolp value) (stringp value))
+    (let ((results))
+      (loop for u in uops do
+	(let ((users (funcall finder u)))
+	  (typecase users
+	    (string
+	     (when (equal users value)
+	       (push u results)))
+	    (list
+	     (dolist (u1 users)
+	       (when (and (stringp u1) (equal u1 value))
+		 (push u results))))
+	    (T
+	     (when (typep users 'uop-load)
+	       (let ((x1 (funcall finder (uop-load-x2 users))))
+		 (dolist (xn x1)
+		   (when (equal xn value)
+		     (push u results)))))
 
-	   (when (typep users 'uop-loop)
-	     (let ((x1 (funcall finder users)))
-	       (dolist (xn x1)
-		 (when (equal xn value)
-		   (push xn results)))))))))
-    (remove-duplicates (reverse results))))
+	     (when (typep users 'uop-loop)
+	       (let ((x1 (funcall finder users)))
+		 (dolist (xn x1)
+		   (when (equal xn value)
+		     (push u results)))))))))
+      (remove-duplicates (reverse results)))))
 
 (defun value->users (graph value)
   (declare (type UOpGraph graph))
   (explore-uopgraph (uopgraph-uops graph) value :finder #'uop-reads))
 
+(defun uops/value->users (uops value)
+  (explore-uopgraph uops value :finder #'uop-reads))
+
 (defun user->values (graph value)
   (declare (type UOpGraph graph))
   (explore-uopgraph (uopgraph-uops graph) value :finder #'uop-writes))
+
+(defun uops/user->values (uops value)
+  (explore-uopgraph uops value :finder #'uop-writes))
 
 (defun recursively-find-parents (graph value)
   (declare (type UOpGraph graph))
@@ -63,7 +69,8 @@
 		    (map
 		     'list
 		     #'(lambda (x)
-			 (recursively-find-parents graph x))
+			 (when (not (equal x value))
+			   (recursively-find-parents graph x)))
 		     results)))
 		  (list k)))
 	  else
@@ -75,7 +82,7 @@
       (when (uop-loop-p uop)
 	(setf iters (append iters (uop-writes uop))))
       (when (uop-endloop-p uop)
-	(let ((rms (map 'list #'range-id (uop-endloop-iters uop))))
+	(let ((rms (range-id (uop-endloop-iters uop))))
 	  (dolist (r rms)
 	    (setf iters (remove r iters))))))
     iters))

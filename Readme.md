@@ -43,7 +43,15 @@
 - [ ] randn/betaとかもコンパイルして生成
 - winograd
 - [ ] runtime template (ros create tekina)
-
+- [ ] ./opsに色々最適化されたtomlを書いておく。arangeとかrandnも実装できるように
+- [ ] コンパイラは，全部のTypeに対するtopi的なやつの自動生成を第一目標に，次にFusionしたカーネルの生成を目標にする。
+    - だから，Polyhedral Compilerを**実装しない方針にした代わりに**
+    - [ ] 計算中Indexを参照する
+    - [ ] スカラー計算をやりやすく抽象化するとか
+       - UOpsでスカラー計算表現した方がいい気がする。
+    - [ ] ^とval_xxx使ってforでスカラー計算表現するとか
+    - ができるべき。
+- [ ] SIMDGroupでIfしたりIfしなかったりを生成できるようにしたい。
 - [ ] TinygradのScheduling, Loweringをもってくる。
 - コンセプトはこう:
     - UOpsに対して難しい最適化Polyhedral Compilationはしない。(その代わり手動で各段階でループのオーダーだけチューニングしておく) -> after, simdify or grouping.
@@ -60,6 +68,10 @@
         - Composite <-> Compositeの箇所でSliceは挟まないから，一旦Composite内部で考えればよさそう？
 	- 要は早いConv2DのCompositeさえ入手できれば(PyTorchがそうなように) 十分な速度を期待できる。
 	- Scalarに対するCompilerもつくる！
+
+- [ ] POV: FlashAttention2が生成できる？ https://gist.github.com/xiabingquan/a4a9a743f97aadd531ed6218be20afd2
+- [ ] POV: ~の記号があるとき -> ndarrayに対して処理できるようにしたい。
+- [ ] POV: Viewed Sin関数みたいなのを最適化？・・・一つのCompositeでは，Inputs, Outputsが全てBaseだと仮定する。
 
 - [ ] ElementWiseな関数をFlattenする処理 ->
 ```

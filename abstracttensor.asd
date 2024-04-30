@@ -10,5 +10,7 @@
    "abstracttensor.lang")
   :in-order-to
   ((test-op
-    (asdf:test-op "abstracttensor.engine"))))
+    (asdf:test-op "abstracttensor.engine")
+    ;; Other system follows
+    )))
 

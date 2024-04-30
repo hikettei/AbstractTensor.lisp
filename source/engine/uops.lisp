@@ -12,6 +12,9 @@
 
 ;; ~~ Range Interface ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+(deftype graph-id ()
+  `(or symbol string))
+
 (defstruct Range
   "Range: for (int id=from; from<to; id+=by)"
   (id)
@@ -44,6 +47,29 @@
 ;; When encountered Special UOps (e.g.: Loop), uop-reads/writes should return nil to keep consistency.
 (defmethod uop-writes ((uop t)) nil)
 (defmethod uop-reads ((uop t)) nil)
+(defun eliminate-buffer (list f)
+  ;; Recursively explores until buffer elimiated
+  (if (every #'(lambda (x) (typep x 'graph-id)) list)
+      list
+      (alexandria:flatten
+       (map 'list #'(lambda (x) (if (typep x 'graph-id) x (funcall f x))) list))))
+	   
+(defmethod uop-writes :around (uop)
+  (let ((result (call-next-method)))
+    (eliminate-buffer
+     (if (listp result)
+	 result
+	 (list result))
+     #'uop-writes)))
+
+(defmethod uop-reads :around (uop)
+  (let ((result (call-next-method)))
+    (eliminate-buffer
+     (if (listp result)
+	 result
+	 (list result))
+     #'uop-reads)))
+
 
 ;; Each time C-c C-x this eval-when form, the macro uopcase is redefined.
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -274,10 +300,11 @@ write <- read
 	 (progn
 	   ;; Note: this assertion could be unnecessary;
 	   ;; note that just the returned value of ALU.writes is multiple.
-	   (assert (= (length out) 1))
+	   ;; (assert (= (length out) 1))
 	   (car out))
 	 out))
-   (error "~a cannot be a buffer." uop)))
+   ;;(error "~a cannot be a buffer." uop)
+   uop))
 
 (defstruct (UOpGraph
 	    (:constructor make-uopgraph (uops)))

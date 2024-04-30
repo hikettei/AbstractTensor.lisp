@@ -5,6 +5,38 @@
 
 (defparameter *simplifiers* (make-hash-table))
 
+(defun remove-uops (uops target)
+  (loop for u in uops
+	unless (equal u target)
+	  collect u))
+
+(defun resolve-isolated-uops (uops)
+  (declare (type list uops)
+	   (optimize (speed 3)))
+  (let ((new-uops)
+	(seen)
+	(stashed))
+    (flet ((seen-p (reads)
+	     (every #'(lambda (x) (find x seen :test #'equal)) reads)))
+      (loop for u in uops
+	    for position fixnum upfrom 0
+	    for reads  = (uop-reads u)
+	    for writes = (uop-writes u)
+	    do (dolist (w writes) (push w seen))
+	    if (seen-p reads) do
+	      (push u new-uops)
+	    else do
+	      (push (cons reads u) stashed)
+	    do (loop for (reads-old . u-old) in stashed
+		     if (seen-p reads-old)
+		       do (push u-old new-uops)
+			  (setf stashed (remove u-old stashed :key #'cdr :test #'equal)))))
+
+    (when (not (= (length uops) (length new-uops)))
+      (warn "resolve-isolated-uops: these UOPs are isolated from the DAG and removed:~%~a~%If your compiled code will not work well, that could be due to a bug of simplifiers." stashed))
+    
+    (reverse new-uops)))
+
 (defmacro define-simplifier (name (uops) &body body)
   "
 ## [macro] define-simplifier
@@ -20,9 +52,13 @@ TODO:
 
 ;; (A * B) + C -> MulADD(A, B, C)
 (define-simplifier MulAdd (uops)
-  (let ((add (second uops))
-	(mul (first  uops)))
+  (let* ((mul (first  uops))
+	 (add (uops/value->users uops (uop->buffer mul))))
     (and
+     (= (length add) 1)
+     (progn
+       (setf add (car add))
+       t)
      (typep add 'UOp-ALU)
      (typep mul 'UOp-ALU)
      (eql (uop-alu-op-type add) :+)
@@ -46,7 +82,11 @@ TODO:
 			   else
 			     append (list arg))
 	   :op-type :muladd))
-	 (nthcdr 2 uops)))))))
+	 (remove-uops
+	  (remove-uops
+	   uops
+	   add)
+	  mul)))))))
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -80,7 +120,7 @@ the following optimizations are performed iteratively:
 	       changed (or changed changed-here))))
    *simplifiers*)
   (if changed
-      (uops-simplify uops)
+      (uops-simplify (resolve-isolated-uops uops))
       uops))
 
 (defun %uopgraph-simplify (graph)

@@ -13,23 +13,26 @@
 
 (in-package :caten)
 
+(defun run-compilation (path runtime)
+  
+  ;; Runtime Configuration
+  ;; [TODO] If runtime not found, search from ./runtimes
+  (load runtime)
+  
+  (let* ((composite (aten/lang:composite-from-file path))
+	 (uops      (aten/lang:trace-uops
+		     (aten/ir:composite-inputs composite)
+		     (read-from-string (aten/ir:composite-code composite))))
+	 (graph     (aten/engine:uops-optimize (print uops)))
+	 (code      (aten/engine:realize graph)))
+    (print code)
+    (print graph)
+    ))
+
 (defun caten/handler (cmd)
   (let* ((path (clingon:getopt cmd :input))
 	 (runtime (clingon:getopt cmd :runtime)))
-
-    ;; Runtime Configuration
-    ;; [TODO] If runtime not found, search from ./runtimes
-    (load runtime)
-    
-    (let* ((composite (aten/lang:composite-from-file path))
-	   (uops      (aten/lang:trace-uops
-		       (aten/ir:composite-inputs composite)
-		       (read-from-string (aten/ir:composite-code composite))))
-	   (graph     (aten/engine:uops-optimize uops))
-	   (code      (aten/engine:realize graph)))
-      (print code)
-      (print graph)
-      )))
+    (run-compilation path runtime)))
 
 (defun caten/options ()
   (list
@@ -63,3 +66,4 @@
     (if (= (length argv) 0)
 	(clingon:print-usage app t)
 	(clingon:run app argv))))
+
