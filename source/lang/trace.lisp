@@ -96,9 +96,16 @@
 	     :op-type (intern (symbol-name car) "KEYWORD")
 	     ;; Asserting that all dtypes are the same.
 	     :dtype
-	     (aten/engine:infer-buffer-type
-	      (aten/engine::uop-load-x2
-	       (car (last (car args)))))))))
+	     (let ((buffer (car (last (car args)))))
+	       (typecase buffer
+		 (aten/engine::UOp-Load
+		  (aten/engine:infer-buffer-type
+		   (aten/engine::uop-load-x2
+		    buffer)))
+		 (aten/engine::UOp-ALU
+		  (aten/engine::uop-alu-dtype buffer))
+		 (T
+		  (error "Cannot infer the type when tracing the graph"))))))))
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
       ((list (or 'incf 'decf 'mulcf 'divcf) form1)
