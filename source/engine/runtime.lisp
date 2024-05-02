@@ -45,6 +45,9 @@ Set RuntimeConfig to use.")
 		   (loop for s in (aten/ir:aten-shape i)
 			 if (not (numberp s))
 			   collect s)))))
+      ;;[WIP] *dynamic-params*と*config*を読んで
+      ;; Groupingできるか？とかで分岐を色々する
+      ;; 条件ごとに関数を生成する
       (setf (UOpGraph-uops new-uop-graph)
 	    `(,(aten/engine:make-uop-defun
 		:inputs
@@ -79,3 +82,11 @@ Return: (values type-keyword pointer-p)"
    ((name idx)
     (declare (ignore idx))
     (values (aten/ir:aten-type-class name) nil))))
+
+(defmacro with-debug-level ((n-level) &body body)
+  `(when (or
+	  (null *runtime*)
+	  (>= (runtimeconfig-debug *runtime*) ,n-level))
+     ,@body))
+
+

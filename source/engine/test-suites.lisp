@@ -17,13 +17,13 @@
      ,@body))
 
 ;; Mul, Add -> MulAdd
-(define-simplify-test ("A{T}[i j]<1 0>()" "B{T}[j k]<1 0>()" "C{T}[i k]<1 0>()")
+(define-simplify-test ("A{Float}[i j]<1 0>()" "B{Float}[j k]<1 0>()" "C{Float}[i k]<1 0>()")
 		      "
-(dotimes (i1 256)
-    (dotimes (j1 256)
-        (dotimes (k1 256)
+(dotimes (i1 i)
+    (dotimes (j1 j)
+        (dotimes (k1 k)
 	    (setf (aref c i1 k1) 0))
-        (dotimes (k1 256)
+        (dotimes (k1 k)
 	    (incf (aref c i1 k1) (* (aref a i1 j1) (aref b j1 k1))))))
 "
     ((base new)

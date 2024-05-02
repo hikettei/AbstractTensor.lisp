@@ -264,6 +264,12 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
      (dtype   nil :type Dtypes))
     :read  (uop-alu-x-reads uop)
     :write (uop-alu-x-writes uop))
+  (defmethod print-object ((alu UOp-ALU) stream)
+    (format stream "ALU [~a][~a]: ~a -> ~a~%"
+	    (uop-alu-op-type alu)
+	    (uop-alu-dtype alu)
+	    (uop-alu-x-reads alu)
+	    (uop-alu-x-writes alu)))
 
   (define-uop WMMA
     ""
@@ -311,7 +317,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 				    #'(lambda (bind slot-name)
 					`(,bind (slot-value ,keyform ',slot-name)))
 				    (car ,uop-name) ',slots))
-			    ;;(declare (ignorable ,@',slots))
+			    (declare (ignorable ,@(map 'list #'(lambda (x) x) (car ,uop-name))))
 			    ,@(cdr ,uop-name)))))
 	    (T (error "~a is not a family of UOps." ,keyform))))
 
@@ -336,7 +342,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 				    #'(lambda (bind slot-name)
 					`(,bind (slot-value ,keyform ',slot-name)))
 				    (car ,buffer-name) ',slots))
-			    ;;(declare (ignorable ,@',slots))
+			    (declare (ignorable ,@(map 'list #'(lambda (x) x) (car ,buffer-name))))
 			    ,@(cdr ,buffer-name)))))
 	    (T (error "~a is not a family of Buffers." ,keyform))))))
 
@@ -417,7 +423,11 @@ Returns a list of optimized uops graph
 
     ;; [./uops-optimizer.lisp]
     ;; Applies loop-oriented optimization techniques
-    (%uops-optimize-loops graph) 
+    (%uops-optimize-loops graph)
+
+    ;; Finally, Simplifies the DAG Graph Again.
+
+    (setf (UOpGraph-uops graph) (uops-simplify (UOpGraph-uops graph)))
     graph
     ))
 

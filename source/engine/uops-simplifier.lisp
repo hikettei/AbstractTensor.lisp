@@ -47,8 +47,18 @@ Defines a simplifier which rewrites the DAG graph based on the rule.
 TODO:
 - Docs
 - define-simplifierにドキュメントの機能をつける+自動生成
+
+Body is a function where:
+
+((x)
+ Body)
+
+x is a list of uops. For i = 0...(length uops), x = (nthcdr i uops)
+And body:
+- Return NIL if the optimization cannot be applied
+- Return a rewritten graph if the optimization technique can be applied.
 "
-  `(setf (gethash ',name *simplifiers*) #'(lambda (,uops) ,@body)))
+  `(setf (gethash ',name *simplifiers*) #'(lambda (,uops) (block ,name ,@body))))
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -73,6 +83,10 @@ TODO:
 	(= (length add-reads) (length mul-reads) 2)
 	(= (length add-writes) (length mul-writes) 1)
 	(find (car mul-writes) add-reads :test #'equal)
+	(progn
+	  (with-debug-level (3)
+	    (format t "[Simplifier] Fused: A*B+C -> MulAdd.~%~a~a" add mul))
+	  t)
 	;; Merge and rewrite uops
 	(append
 	 (list
@@ -90,6 +104,30 @@ TODO:
 	   uops
 	   add)
 	  mul)))))))
+
+(define-simplifier Purge-Isolated-Load (uops)
+  (symbol-macrolet ((->failed (return-from Purge-Isolated-Load nil)))
+    (when (not (uop-load-p (car uops)))->failed)
+    
+    (let* ((load (car uops))
+	   (where-to-writes (uop-writes load))
+	   (who-depends-on-load?
+	     (apply
+	      #'append
+	      (map
+	       'list
+	       #'(lambda (wn)
+		   (uops/user->values uops wn))
+	       where-to-writes))))
+      (when (some #'(lambda (x) x) who-depends-on-load?)->failed)
+      (with-debug-level (3)
+	(format t "[Simplifier] Purged: ~a" load))
+      (cdr uops))))
+
+;; [TODO]
+;; Load-Loop Fuse
+;; Bijective Fuse A->B->C, A->C
+  
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

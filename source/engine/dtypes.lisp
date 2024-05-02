@@ -5,6 +5,9 @@
   `(and
     keyword
     (member
+     ;; Masking
+     :bit
+     
      ;; Integers
      :uint4
      :int4
@@ -30,6 +33,9 @@
 
      ;; Possible?
      ;; :BFloat16
+
+     ;; Boolenas
+     :boolean
      )))
 
 

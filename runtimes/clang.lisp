@@ -17,7 +17,7 @@
 ;;  Stride computation
 ;;  Graph simplification
 
-(aten/engine:declare-runtime :clang)
+(aten/engine:declare-runtime :clang :debug 4)
 
 (defparameter *headers* "
 #include <math.h>
