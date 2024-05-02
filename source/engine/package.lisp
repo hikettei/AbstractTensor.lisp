@@ -5,6 +5,11 @@
   (:use :cl)
   (:nicknames aten/engine)
 
+  ;; Types
+  (:export
+   #:Dtypes
+   #:Operators
+   )
   ;; UI
   (:export
    #:declare-runtime
@@ -16,11 +21,12 @@
    #:UOpGraph
    #:UOpGraph-uops
    #:render-graph
-   #:render-buffer)
+   #:render-buffer
+   )
   
   (:export
    #:uop->buffer
-   
+   #:infer-buffer-type
    )
 
   ;; Simplifiers

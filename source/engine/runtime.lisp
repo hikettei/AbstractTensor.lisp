@@ -30,9 +30,52 @@ Set RuntimeConfig to use.")
 (defgeneric render-buffer (backend buffer)
   (:documentation "[TODO]"))
 
-(defun realize (uop-graph)
+(defun realize (uop-graph composite &key (function-name (symbol-name (gensym "KID"))))
   "[TODO] Doc finsih the complitaion."
   (declare (type UOpGraph uop-graph))
-  (render-graph
-   (runtimeconfig-name *runtime*)
-   uop-graph))
+
+  (flet ((->make-const (scalar)
+	   (aten/ir::make-aten scalar :int nil nil nil)))
+    (let ((new-uop-graph (copy-UOpGraph uop-graph))
+	  ;; Gathering dynamic shapes
+	  (dynamic-shapes
+	    (remove-duplicates
+	     (loop for i in (aten/ir:composite-inputs composite)
+		   append
+		   (loop for s in (aten/ir:aten-shape i)
+			 if (not (numberp s))
+			   collect s)))))
+      (setf (UOpGraph-uops new-uop-graph)
+	    `(,(aten/engine:make-uop-defun
+		:inputs
+		`(,@(aten/ir:composite-inputs composite)
+		  ,@(map 'list #'->make-const dynamic-shapes))
+		:outputs (aten/ir:composite-outputs composite)
+		:named function-name)
+	      ,@(UOpGraph-uops new-uop-graph)
+	      ,(aten/engine:make-uop-enddefun
+		:named function-name)))
+      (render-graph
+       (runtimeconfig-name *runtime*)
+       new-uop-graph))))
+
+
+;; Utils
+(defun infer-buffer-type (buffer)
+  "Infers the type of buffer.
+Return: (values type-keyword pointer-p)"
+  (declare (type buffers buffer))
+
+  (when (stringp buffer)
+    (error "Cannot infer the type of ~a." buffer))
+
+  (buffercase
+   buffer
+   :const
+   ((value type pointer-p)
+    (declare (ignore value))
+    (values type pointer-p))
+   :aref
+   ((name idx)
+    (declare (ignore idx))
+    (values (aten/ir:aten-type-class name) nil))))

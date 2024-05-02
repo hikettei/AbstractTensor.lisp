@@ -15,7 +15,7 @@ A{T}[M, ~, N]<1 ~ 0>(where M = 1)
 |--- The name of tensor.
 "
   (id (or id (gensym "TID")) :type symbol)
-  (type-class type-class)
+  (type-class type-class :type keyword)
   (shape shape :type list)
   (order order :type list)
   (where where))
@@ -197,7 +197,7 @@ Example:
 		      collect (cons name exp)
 		    else
 		      do (error "="))))
-	(make-aten name (car type) shape stride where-pretty)))))
+	(make-aten name (intern (symbol-name (car type)) "KEYWORD") shape stride where-pretty)))))
 
 (defun parse-aten (expression)
   (declare (inline %parse-aten))

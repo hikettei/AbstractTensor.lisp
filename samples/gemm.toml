@@ -3,7 +3,7 @@ documentation = """
 Multiplies two matrices.
 """
 name = "Gemm"
-inputs = ["A{T}[i j]<1 0>()", "B{T}[j k]<1 0>()", "C{T}[i k]<1 0>()"]
+inputs = ["A{float}[i j]<1 0>()", "B{float}[j k]<1 0>()", "C{float}[i k]<1 0>()"]
 outputs = ["C"]
 
 [implementation]

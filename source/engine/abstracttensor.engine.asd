@@ -6,12 +6,15 @@
   :serial t
   :components
   ((:file "package")
-
+   (:file "dtypes")
+   (:file "operators")
    ;; *uops must be loaded first* because when this file initialized
    ;; it also creates *uop-features*, and *buffer-features*
    ;; and, runtime.lisp depends on it. (when compile-toplevel)
    
    (:file "uops")
+   
+   
    (:file "schedule")
    (:file "runtime")
    (:file "uops-simplifier")

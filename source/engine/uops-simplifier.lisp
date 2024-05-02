@@ -11,18 +11,18 @@
 	  collect u))
 
 (defun resolve-isolated-uops (uops)
-  (declare (type list uops)
-	   (optimize (speed 3)))
+  (declare (type list uops))
   (let ((new-uops)
 	(seen)
 	(stashed))
+    (declare (type list new-uops seen stashed))
     (flet ((seen-p (reads)
 	     (every #'(lambda (x) (find x seen :test #'equal)) reads)))
       (loop for u in uops
 	    for position fixnum upfrom 0
 	    for reads  = (uop-reads u)
 	    for writes = (uop-writes u)
-	     do (print "+++") (print u) (print (recursively-find-deps uops (uop->buffer u)))
+	    ;;do (print "+++") (print u) (print (recursively-find-deps uops (uop->buffer u)))
 	    do (dolist (w writes) (push w seen))
 	    if (seen-p reads) do
 	      (push u new-uops)
@@ -32,9 +32,10 @@
 		     if (seen-p reads-old)
 		       do (push u-old new-uops)
 			  (setf stashed (remove u-old stashed :key #'cdr :test #'equal)))))
-    
-    (when (not (= (length uops) (length new-uops)))
-      (warn "resolve-isolated-uops: these UOPs are isolated from the DAG and removed:~%~a~%If your compiled code will not work well, that could be due to a bug of simplifiers." stashed))
+
+    ;; TODO: It is ok to exist isolated graphs; since they have no deps relocated to the top of the dag graph.
+    ;; (when (not (= (length uops) (length new-uops)))
+    ;;   (warn "resolve-isolated-uops: these UOPs are isolated from the DAG and removed:~%~a~%If your compiled code will not work well, that could be due to a bug of simplifiers." stashed))
     
     `(,@(map 'list #'cdr stashed) ,@(reverse new-uops))))
 
@@ -82,7 +83,8 @@ TODO:
 			     append mul-reads
 			   else
 			     append (list arg))
-	   :op-type :muladd))
+	   :op-type :muladd
+	   :dtype (uop-alu-dtype add)))
 	 (remove-uops
 	  (remove-uops
 	   uops

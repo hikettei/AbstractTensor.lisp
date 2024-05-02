@@ -37,7 +37,7 @@
        (let* ((count (explore count))
 	      (count-idx (aten/engine:uop->buffer (car (last count))))
 	      (range (spawn-range bind 0 count-idx 1)))
-	 (setf (gethash bind scope) range)
+	 (setf (gethash bind scope) (cons bind :int))
 	 (prog1
 	     `(,@count
 	       ,(aten/engine:make-uop-loop
@@ -62,17 +62,17 @@
 	      (to-buff   (aten/engine:uop->buffer (car (last to-uop))))
 	      (by-buff   (aten/engine:uop->buffer (car (last by-uop))))
 	      (range    (spawn-range bind from-buff to-buff by-buff)))
-	 (setf (gethash bind scope) range)
+	 (setf (gethash bind scope) (cons bind :int))
 	 (prog1
 	     `(,@from-uop
 	       ,@to-uop
 	       ,@by-uop
 	       ,(aten/engine:make-uop-loop
-		 :iters (getscope bind)
+		 :iters range
 		 :scope :global)
 	       ,@(apply #'append (map 'list #'explore (cddr form)))
 	       ,(aten/engine:make-uop-endloop
-		 :iters (getscope bind)
+		 :iters range
 		 :option :none))
 	   (remhash bind scope))))
       ;; (- a) -> -a
@@ -93,7 +93,12 @@
 	     :x-reads
 	     (loop for arg in args
 		   append (list (aten/engine:uop->buffer (car (last arg)))))
-	     :op-type (intern (symbol-name car) "KEYWORD")))))
+	     :op-type (intern (symbol-name car) "KEYWORD")
+	     ;; Asserting that all dtypes are the same.
+	     :dtype
+	     (aten/engine:infer-buffer-type
+	      (aten/engine::uop-load-x2
+	       (car (last (car args)))))))))
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
       ((list (or 'incf 'decf 'mulcf 'divcf) form1)
@@ -122,6 +127,7 @@
 	     (what (explore what)))
 	 (assert (aten/engine::uop-load-p (car to)) () "Assertion failed: X = Y; X must be a LOAD.")
 	 `(,@what
+	   ,@to
 	   ,(aten/engine:make-uop-store
 	     :x1 (aten/engine::uop-load-x2 (car (last to)))
 	     :x2 (aten/engine:uop->buffer  (car (last what)))))))
@@ -143,7 +149,7 @@
        (let* ((subscripts (map 'list #'explore (cddr form)))
 	      (buffer (aten/engine:make-aref-buffer
 		       :idx  (map 'list #'(lambda (x) (aten/engine:uop->buffer (car (last x)))) subscripts)
-		       :name (getscope (second form)))))
+		       :name (car (getscope (second form))))))
 	 (append
 	  (alexandria:flatten subscripts)
 	  (list
@@ -169,7 +175,7 @@
 
       ;; variable
       ((type symbol)
-       (let ((val (aten/engine:make-const-buffer :value (getscope form))))
+       (let ((val (aten/engine:make-const-buffer :value (car (getscope form)) :type (cdr (getscope form)) :pointer-p nil)))
 	 (list
 	  (aten/engine:make-uop-load
 	   :x1 (prog1
@@ -187,10 +193,10 @@
   (declare (type list inputs body))
 
   (dolist (input inputs)
-    (setf (gethash (intern (symbol-name (aten/ir:aten-id input))) scope) input)
+    (setf (gethash (intern (symbol-name (aten/ir:aten-id input))) scope) (cons input (aten/ir:aten-type-class input)))
     ;; Register symbols
     (dolist (shape (aten/ir:aten-shape input))
-      (setf (gethash (intern (symbol-name shape)) scope) shape)))
-  
+      (setf (gethash (intern (symbol-name shape)) scope) (cons shape :int))))
+
   (graph-funcall counter scope body))
 

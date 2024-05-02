@@ -35,6 +35,10 @@
 
 ;; ~~ UOPs Interface ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+;; The lowest level IR, UOP
+;; UOP is defined as: op-name (read-args) (write-args), [options]
+;; (TODO: Description)
+
 ;; Read/Write Dependencies
 (defgeneric uop-writes (uop)
   (:documentation
@@ -105,26 +109,15 @@
   ;; ~~ Buffers ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   (define-buffer Const
-    "Loads a constant scalar value."
-    ((value nil)
-     (type :float :type keyword)
+    "Loads a constant scalar value.
+Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symbol"
+    ((value nil :type (or number string aten/ir:AbstractTensor keyword symbol))
+     (type :float :type Dtypes)
      (pointer-p nil :type boolean))
     :read (typecase (const-buffer-value buffer)
-	    (Range
-	     (with-slots ((id id) (from from) (to to) (by by)) (const-buffer-value buffer)
-	       (list
-		id
-		(when (not (numberp from))
-		  from)
-		(when (not (numberp to))
-		  to)
-		(when (not (numberp by))
-		  by))))
-	    (Symbol  (list (const-buffer-value buffer)))
-	    (String  (list (const-buffer-value buffer))))
-    :write (typecase (const-buffer-value buffer)
-	     (Range
-	      (list (range-id (const-buffer-value buffer))))))
+	    (aten/ir:AbstractTensor (list (aten/ir:aten-id (const-buffer-value buffer))))
+	    (T (list (const-buffer-value buffer))))
+    :write nil)
 
   (define-buffer Aref
     "Refs [idx] from [name]"
@@ -133,9 +126,25 @@
     :read (aref-buffer-idx buffer))
 
   (deftype Buffers ()
-    `(or Const-Buffer Aref-Buffer string))
+    `(or Const-Buffer Aref-Buffer String))
 
   ;; ~~ UOps ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  (define-uop Defun
+    "
+## UOp[Defun]
+
+"
+    ((inputs nil :type list)
+     (outputs nil :type list)
+     (named  "" :type string)))
+
+  (define-uop EndDefun
+    "
+## UOp[EndDefun]
+
+"
+    ((named "" :type string)))
+  
   (define-uop Loop
     "
 ## Uop[Loop]
@@ -251,7 +260,8 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 "
     ((x-writes nil :type list)
      (x-reads nil :type list)
-     (op-type nil))
+     (op-type nil :type Operators)
+     (dtype   nil :type Dtypes))
     :read  (uop-alu-x-reads uop)
     :write (uop-alu-x-writes uop))
 

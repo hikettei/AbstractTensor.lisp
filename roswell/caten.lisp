@@ -24,7 +24,7 @@
 		     (aten/ir:composite-inputs composite)
 		     (read-from-string (aten/ir:composite-code composite))))
 	 (graph     (aten/engine:uops-optimize uops))
-	 (code      (aten/engine:realize graph)))
+	 (code      (aten/engine:realize graph composite)))
     (print code)
     (print graph)
     ))

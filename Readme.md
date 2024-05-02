@@ -64,7 +64,7 @@
 - [ ] POV: FlashAttention2が生成できる？ https://gist.github.com/xiabingquan/a4a9a743f97aadd531ed6218be20afd2
 - [ ] POV: ~の記号があるとき -> ndarrayに対して処理できるようにしたい。
 - [ ] POV: Viewed Sin関数みたいなのを最適化？・・・一つのCompositeでは，Inputs, Outputsが全てBaseだと仮定する。
-- [ ] 作成したRuntimeに対してのUnittestみたいなのを自動でできるようにする。(./aten-cli test-runtime --runtime xxx.lisp) tekina
+- [ ] 作成したRuntimeに対してのUnittestみたいなのを自動でできるようにする。(./aten-cli test-runtime --runtime xxx.lisp) tekina. (./Reports.mdみたいなの生成して対応してるOpSetの一覧の表を作る)
 - [ ] ElementWiseな関数をFlattenする処理 ->
 ```
 (defun sin (x)
