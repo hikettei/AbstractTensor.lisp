@@ -156,7 +156,14 @@ Loop iter, scope.
      (scope :global :type (and keyword (member :global :local))))
 
     :write (list (range-id (uop-loop-iters uop)))
-    :read  (uop-reads (uop-loop-iters uop)))
+    :read  (let ((range (uop-loop-iters uop)))
+	     (list
+	      (when (not (numberp (range-from range)))
+		(range-from range))
+	      (when (not (numberp (range-to range)))
+		(range-to range))
+	      (when (not (numberp (range-by range)))
+		(range-by range)))))
 
   (define-uop EndLoop
     "

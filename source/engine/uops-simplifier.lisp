@@ -124,10 +124,58 @@ And body:
 	(format t "[Simplifier] Purged: ~a" load))
       (cdr uops))))
 
+(define-simplifier FoldConstant[Loop] (uops)
+  (symbol-macrolet ((->failed (return-from FoldConstant[Loop] nil)))
+    (when (not (uop-load-p (car uops)))->failed)
+    (let* ((load (car uops))
+	   (usrs (uops/value->users uops (uop-load-x1 load)))
+	   (trigger      (uop-load-x1 load))
+	   (replace-with (uop-load-x2 load))
+	   (targets
+	     (loop for usr in usrs
+		   if (or
+		       (uop-loop-p usr)
+		       ;;(uop-load-p usr)
+		       )
+		     collect usr))
+	   (changed-p nil))
+      (when (not (const-buffer-p replace-with))->failed)
+      
+      (macrolet ((replace! (accessor &key (wrap 'progn))
+		   `(progn
+		      (when (equal ,accessor trigger)
+			(with-debug-level (3)
+			  (format t "[Simplifier] Rewriting ~a -> ~a of ~a~%"
+				  ,accessor
+				  (,wrap replace-with)
+				  tgt))
+			(setf ,accessor (,wrap replace-with)
+			      changed-p t)))))
+	;; [TODO] More
+	(labels ((->name (obj)
+		   (if (numberp obj)
+		       obj
+		       (format nil "~(~a~)" obj)))
+		 (->aref-idx (obj)
+		   (->name (const-buffer-value obj))))
+	  (dolist (tgt targets)
+	    (typecase tgt
+	      (UOp-Loop
+	       (replace! (range-from (uop-loop-iters tgt)))
+	       (replace! (range-to   (uop-loop-iters tgt)))
+	       (replace! (range-by   (uop-loop-iters tgt))))
+	      (UOp-Load
+	 ;      (let ((aref (uop-load-x2 tgt)))
+	;	 (when (aref-buffer-p aref)
+	;	   (dotimes (i (length (aref-buffer-idx aref)))
+	;	     (replace! (nth i (aref-buffer-idx aref)) :wrap ->aref-idx))))
+	       ))))
+	(if changed-p uops nil)))))
+
 ;; [TODO]
 ;; Load-Loop Fuse
 ;; Bijective Fuse A->B->C, A->C
-  
+
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

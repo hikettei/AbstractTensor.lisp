@@ -23,6 +23,9 @@
 #include <math.h>
 ")
 
+(defparameter *indent* 0)
+(defun indent () (with-output-to-string (out) (dotimes (i *indent*) (princ " " out))))
+
 (defun cName (object)
   (format nil "~(~a~)" object))
 
@@ -75,29 +78,33 @@
      :enddefun
      ((named)
       (declare (ignore named))
-      (format stream "} // EndDefun~%"))     
+      (format stream "~a} // EndDefun~%" (indent))
+      (decf *indent* 4))     
      :loop
      ((iter scope)
       (let ((id   (aten/engine:range-id   iter))
 	    (from (aten/engine:range-from iter))
 	    (to   (aten/engine:range-to   iter))
 	    (by   (aten/engine:range-by   iter)))
-	(format stream "for (int ~a=~a; ~a<~a; ~a+=~a) {~%"
-		(->buffer id) (->buffer from) (->buffer id) (->buffer to) (->buffer id) (->buffer by))))
+	(format stream "~afor (int ~a=~a; ~a<~a; ~a+=~a) {~%"
+		(indent) (->buffer id) (->buffer from) (->buffer id) (->buffer to) (->buffer id) (->buffer by))
+	(incf *indent* 4)))
      :endloop
      ((iter option)
-      (format stream "} // EndLoop ~%"))
+      (format stream "~a} // EndLoop ~%" (indent))
+      (decf *indent* 4))
      :load
      ((x1 x2)
       (multiple-value-bind (type pointer-p)
 	  (aten/engine:infer-buffer-type x2)
-	(format stream "~(~a~) ~a~a = ~a; // UOp.Load~%" type (if pointer-p "*" "") (->buffer x1) (->buffer x2))))
+	(format stream "~a~(~a~) ~a~a = ~a; // UOp.Load~%" (indent) type (if pointer-p "*" "") (->buffer x1) (->buffer x2))))
      :alu
      ((x-writes x-reads op-type dtype)
       (cond
 	((eql op-type :muladd)
 	 ;; out = A * B + C;
-	 (format stream "~a ~a = ~a * ~a + ~a;~%"
+	 (format stream "~a~a ~a = ~a * ~a + ~a;~%"
+		 (indent)
 		 (cName dtype)
 		 (->buffer (nth 0 x-writes))
 		 (->buffer (nth 0 x-reads))
@@ -105,7 +112,8 @@
 		 (->buffer (nth 2 x-reads))))
 	((find op-type '(:+ :- :* :/ :< :> :<= :>= :=))
 	 ;; Arithmetic
-	 (format stream "~a ~a = (~a);~%"
+	 (format stream "~a~a ~a = (~a);~%"
+		 (indent)
 		 (cName dtype)
 		 (->buffer (car x-writes))
 		 (apply
@@ -121,7 +129,7 @@
 	 )))
      :store
      ((x1 x2)
-      (format stream "~a = ~a; // UOp.Store~%" (->buffer x1) (->buffer x2))))))
+      (format stream "~a~a = ~a; // UOp.Store~%" (indent) (->buffer x1) (->buffer x2))))))
 
 (defmethod aten/engine:render-graph ((backend (eql :clang)) uopgraph)
   (with-output-to-string (out)
