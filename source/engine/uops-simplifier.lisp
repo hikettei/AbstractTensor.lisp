@@ -49,7 +49,7 @@
     ;;`(,@(map 'list #'cdr stashed) ,@(reverse new-uops))
     (reverse new-uops)))
 
-(defmacro define-simplifier (name (uops) &body body)
+(defmacro define-simplifier (name (uops &optional (uops-all (gensym))) &body body)
   "
 ## [macro] define-simplifier
 
@@ -68,7 +68,10 @@ And body:
 - Return NIL if the optimization cannot be applied
 - Return a rewritten graph if the optimization technique can be applied.
 "
-  `(setf (gethash ',name *simplifiers*) #'(lambda (,uops) (block ,name ,@body))))
+  `(progn
+     (when (gethash ',name *simplifiers*)
+       (warn "Redefining the simplifier ~a~%" ',name))
+     (setf (gethash ',name *simplifiers*) #'(lambda (,uops ,uops-all) (declare (ignorable ,uops-all)) (block ,name ,@body)))))
 
 (defmacro with-local-simplifiers (&body body)
   `(let ((*simplifiers* (make-hash-table)))
@@ -77,9 +80,9 @@ And body:
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ;; (A * B) + C -> MulADD(A, B, C)
-(define-simplifier MulAdd (uops)
+(define-simplifier MulAdd (uops uops-full)
   (let* ((mul (first  uops))
-	 (add (uops/value->users uops (uop->buffer mul))))
+	 (add (uops/value->users uops-full (uop->buffer mul))))
     (and
      (= (length add) 1)
      (progn
@@ -119,7 +122,7 @@ And body:
 	   add)
 	  mul)))))))
 
-(define-simplifier Purge-Isolated-Load (uops)
+(define-simplifier Purge-Isolated-Load (uops uops-full)
   (symbol-macrolet ((->failed (return-from Purge-Isolated-Load nil)))
     (when (not (uop-load-p (car uops)))->failed)
     
@@ -131,7 +134,7 @@ And body:
 	      (map
 	       'list
 	       #'(lambda (wn)
-		   (uops/value->users uops wn))
+		   (uops/value->users uops-full wn))
 	       where-to-writes))))
 
       (when (and who-depends-on-load? (some #'(lambda (x) x) who-depends-on-load?))->failed)
@@ -139,11 +142,11 @@ And body:
 	(format t "[Simplifier] Purged: ~a~%" load))
       (cdr uops))))
 
-(define-simplifier FoldConstant[Loop] (uops)
+(define-simplifier FoldConstant[Loop] (uops uops-full)
   (symbol-macrolet ((->failed (return-from FoldConstant[Loop] nil)))
     (when (not (uop-load-p (car uops)))->failed)
     (let* ((load (car uops))
-	   (usrs (uops/value->users uops (uop-load-x1 load)))
+	   (usrs (uops/value->users uops-full (uop-load-x1 load)))
 	   (trigger      (uop-load-x1 load))
 	   (replace-with (uop-load-x2 load))
 	   (targets
@@ -187,7 +190,7 @@ And body:
 	       ))))
 	(if changed-p uops nil)))))
 
-(define-simplifier Load-Fusion (uops)
+(define-simplifier Load-Fusion (uops uops-full)
   (symbol-macrolet ((->failed (return-from Load-Fusion nil)))
     ;;       x1  x2
     ;; Load1 X <- Y
@@ -201,7 +204,7 @@ And body:
 	     (if (const-buffer-p (uop-load-x2 load1))
 		 (uop-load-x2 load1)
 		 ->failed))
-	   (load2s (uops/value->users uops (uop->buffer load1)))
+	   (load2s (uops/value->users uops-full (uop->buffer load1)))
 	   (changed-p nil)
 	   (load2s-new
 	     (loop for l in load2s
@@ -222,7 +225,7 @@ And body:
 
 ;; Arithmetic Simplification Patterns
 (macrolet ((def (name msg pattern)
-	     `(define-simplifier ,name (uops)
+	     `(define-simplifier ,name (uops uops-full)
 		(symbol-macrolet ((->failed (return-from ,name nil)))
 
 		  ;; Finds this pattern in this order: X -> Z -> Y
@@ -236,14 +239,14 @@ And body:
 
 		  (when (not (uop-load-p (car uops)))->failed)
 		  (let* ((x  (car uops))
-			 (zs (uops/value->users uops (uop->buffer x)))
+			 (zs (uops/value->users uops-full (uop->buffer x)))
 			 (z  (car zs)))
 		    (when (not (= (length zs) 1))->failed)
 		    (when (not (uop-alu-p z))->failed)
 		    (let* ((ys
 			     (loop for a in (uop-reads z)
 				   collect
-				   (let ((result (uops/user->values uops a)))
+				   (let ((result (uops/user->values uops-full a)))
 				     (when (not (= (length result) 1))->failed)
 				     (car result)))))
 		      (when (not (every #'uop-load-p ys))->failed)
@@ -346,7 +349,7 @@ And body:
 	   (type function simplifier))
   (loop with count = (length uops)
 	for i upfrom 0 below count
-	do (let ((ref (funcall simplifier (nthcdr i uops))))
+	do (let ((ref (funcall simplifier (nthcdr i uops) uops)))
 	     (when ref
 	       (setf changed-p t
 		     uops `(,@(subseq uops 0 i) ,@ref)))))
