@@ -60,6 +60,10 @@ And body:
 "
   `(setf (gethash ',name *simplifiers*) #'(lambda (,uops) (block ,name ,@body))))
 
+(defmacro with-local-simplifiers (&body body)
+  `(let ((*simplifiers* (make-hash-table)))
+     ,@body))
+
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ;; (A * B) + C -> MulADD(A, B, C)
@@ -119,7 +123,8 @@ And body:
 	       #'(lambda (wn)
 		   (uops/user->values uops wn))
 	       where-to-writes))))
-      (when (some #'(lambda (x) x) who-depends-on-load?)->failed)
+      
+      (when (or (null who-depends-on-load?) (some #'(lambda (x) x) who-depends-on-load?))->failed)
       (with-debug-level (3)
 	(format t "[Simplifier] Purged: ~a" load))
       (cdr uops))))

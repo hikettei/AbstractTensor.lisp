@@ -9,11 +9,25 @@
 (defun read-counter (counter name)
   (declare (type Counter counter)
 	   (type symbol name))
+  
   (format nil "~(~a~)_~a" name (slot-value counter name)))
 
 (defun spawn-range (id from to by)
   (make-range :id id :from from :to to :by by))
 
+(defun lazy-stride-statement (subscripts strides shape)
+  (let ((stacks `(1)))
+    `(+
+      ,@(loop for s   in strides
+	      for sub in subscripts
+	      for size = (nth s shape)
+	      collect
+	      (prog1
+		  `(* ,sub ,@stacks)
+		(push (if (numberp size)
+			  size
+			  (intern (symbol-name size)))
+		      stacks))))))
 
 ;; TODO: Replace it with Elegant BNF Parser
 ;; Feature Enhancement
@@ -82,30 +96,34 @@
       
       ;; arithmetic
       ((list* (or '+ '- '* '/ '> '>= '< '<= '=) _)
-       (let ((car  (car form))
-	     (args (map 'list #'explore (cdr form))))
-	 `(,@(apply #'append args)
-	   ,(aten/engine:make-uop-alu
-	     :x-writes
-	     (prog1
-		 (list (read-counter counter 'alu))
-	       (incf (counter-alu counter)))
-	     :x-reads
-	     (loop for arg in args
-		   append (list (aten/engine:uop->buffer (car (last arg)))))
-	     :op-type (intern (symbol-name car) "KEYWORD")
-	     ;; Asserting that all dtypes are the same.
-	     :dtype
-	     (let ((buffer (car (last (car args)))))
-	       (typecase buffer
-		 (aten/engine::UOp-Load
-		  (aten/engine:infer-buffer-type
-		   (aten/engine::uop-load-x2
-		    buffer)))
-		 (aten/engine::UOp-ALU
-		  (aten/engine::uop-alu-dtype buffer))
-		 (T
-		  (error "Cannot infer the type when tracing the graph"))))))))
+       (let* ((car  (car form))
+	      (args (map 'list #'explore (cdr form)))
+	      (alu (read-counter counter 'alu))
+	      (dtype
+ 		(let ((buffer (car (last (car args)))))
+		  (typecase buffer
+		    (aten/engine::UOp-Load
+		     (aten/engine:infer-buffer-type
+		      (aten/engine::uop-load-x2
+		       buffer)))
+		    (aten/engine::UOp-ALU
+		     (aten/engine::uop-alu-dtype buffer))
+		    (T
+		     (error "Cannot infer the type when tracing the graph: ~a" buffer)))))
+	      (op
+		(aten/engine:make-uop-alu
+		 :x-writes
+		 (prog1
+		     (list alu)
+		   (incf (counter-alu counter)))
+		 :x-reads
+		 (loop for arg in args
+		       append (list (aten/engine:uop->buffer (car (last arg)))))
+		 :op-type (intern (symbol-name car) "KEYWORD")
+		 ;; Asserting that all dtypes are the same.
+		 :dtype dtype)))
+	 (setf (gethash alu scope) (cons op dtype))
+	 `(,@(apply #'append args) ,op)))
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
       ((list (or 'incf 'decf 'mulcf 'divcf) form1)
@@ -153,18 +171,34 @@
       ;; aref -> A[idx]
       ;; Return: Buffer
       ((list* 'aref (type symbol) _)
-       (let* ((subscripts (map 'list #'explore (cddr form)))
+       (let* ((flatten-p (eql (aten/engine::runtimeconfig-indexing-rule aten/engine::*runtime*) :flatten))
+	      (subscripts (map 'list #'explore (cddr form)))
+	      (aref-name    (car (getscope (second form))))
+	      (ref-buffers (map 'list #'(lambda (x) (aten/engine:uop->buffer (car (last x)))) subscripts))
+	      (index-uops (if flatten-p
+			      (progn
+				(assert (aten/ir::abstracttensor-p aref-name) ())
+				(let ((strides (aten/ir:aten-order aref-name))
+				      (shape   (aten/ir:aten-shape aref-name)))
+				  (explore (lazy-stride-statement ref-buffers strides shape))))
+			      nil))
+	      (index-buffers (if flatten-p
+				 (list (aten/engine:uop->buffer (car (last index-uops))))
+				 ref-buffers))
 	      (buffer (aten/engine:make-aref-buffer
-		       :idx  (map 'list #'(lambda (x) (aten/engine:uop->buffer (car (last x)))) subscripts)
-		       :name (car (getscope (second form))))))
+		       :idx  index-buffers
+		       :name aref-name))
+	      (val (read-counter counter 'val))
+	      (op (aten/engine:make-uop-load
+		   :x1 (prog1
+			   val
+			 (incf (counter-val counter)))
+		   :x2 buffer)))
+	 (setf (gethash val scope) (cons op (aten/ir:aten-type-class aref-name)))
 	 (append
 	  (alexandria:flatten subscripts)
-	  (list
-	   (aten/engine:make-uop-load
-	    :x1 (prog1
-		    (read-counter counter 'val)
-		  (incf (counter-val counter)))
-	    :x2 buffer)))))
+	  index-uops
+	  (list op))))
 
       ;; funcall. (car cdr)
       ((list* (type symbol) _)
@@ -172,32 +206,45 @@
        )
       ;; number
       ((type number)
-       (let ((val (aten/engine:make-const-buffer :value form)))
+       (let* ((dtype (typecase form
+		       (float :float)
+		       (integer :int)
+		       (T
+			(warn "cannot infer the type of: ~a" form)
+			:float)))
+	      (val (aten/engine:make-const-buffer :value form :type dtype))
+	      (val-id (read-counter counter 'val))
+	      (op (aten/engine:make-uop-load
+		   :x1 (prog1
+			   val-id
+			 (incf (counter-val counter)))
+		   :x2 val)))
+	 (setf (gethash val-id scope) (cons op dtype))
 	 (list
-	  (aten/engine:make-uop-load
-	   :x1 (prog1
-		   (read-counter counter 'val)
-		 (incf (counter-val counter)))
-	   :x2 val))))
-
+	  op)))
       ;; variable
-      ((type symbol)
-       (let ((val (aten/engine:make-const-buffer :value (car (getscope form)) :type (cdr (getscope form)) :pointer-p nil)))
-	 (list
-	  (aten/engine:make-uop-load
-	   :x1 (prog1
-		   (read-counter counter 'val)
-		 (incf (counter-val counter)))
-	   :x2 val))))
-      
-      ;; string
-      ;;((type string) (format nil "\"~a\"" form))
+      ((or (type string) (type symbol))
+       (let* ((name  (car (getscope form)))
+	      (name (if (aten/engine::uop-load-p name)
+			(aten/engine::uop-load-x1 name)
+			name))
+	      (val (aten/engine:make-const-buffer :value name :type (cdr (getscope form)) :pointer-p nil))
+	      (val-id (read-counter counter 'val))
+	      (op  (aten/engine:make-uop-load
+		    :x1 (prog1
+			    val-id
+			  (incf (counter-val counter)))
+		    :x2 val)))
+	 (setf (gethash val-id scope) (cons op (aten/engine::const-buffer-type val)))	 
+	 (list op)))
       (_
        (error "trace-uops: Cannot deal with this form: ~a" form)))))
 
 (defun trace-uops (inputs body &aux (scope (make-hash-table)) (counter (make-counter)))
-  "Creates a computation graph from lisp-like DSL"
+  "Creates a computation graph from lisp-like DSL.
+!! aten/engine::*runtime* must be declared before compilation! to determine stride computation strategy"
   (declare (type list inputs body))
+  (assert aten/engine::*runtime* () "trace-uops: *runtime* is not declared.")
 
   (dolist (input inputs)
     (setf (gethash (intern (symbol-name (aten/ir:aten-id input))) scope) (cons input (aten/ir:aten-type-class input)))

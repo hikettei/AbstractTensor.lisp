@@ -44,6 +44,7 @@
     - [ ] ^とval_xxx使ってforでスカラー計算表現するとか
     - ができるべき。
 - [ ] SIMDGroupでIfしたりIfしなかったりを生成できるようにしたい。
+- [ ] we are too lazy to reimplement the backends. The smallest effort to write an extension!
 - [ ] TinygradのScheduling, Loweringをもってくる。
 - コンセプトはこう:
     - UOpsに対して難しい最適化Polyhedral Compilationはしない。(その代わり手動で各段階でループのオーダーだけチューニングしておく) -> after, simdify or grouping.

@@ -11,10 +11,38 @@ Set RuntimeConfig to use.")
 	    (:constructor make-runtime (name
 					&key
 					  (debug 0)
+					  (indexing-rule :flatten)
+
 					  (group-for-reduces 1)
 					  (upcasted 1)
 					  (dont-use-locals nil))))
+  "
+## [struct] RuntimeConfig
+
+RuntimeConfig declares the policy for compiling the generated UOps.
+
+First, UOps, which begin as Lisp-written matrix operation code, are traced and optimized in a hardware-independent manner. During compilation, based on the information from this RuntimeConfig, UOps are transformed into forms specific to CPUs and GPUs, for example, allowing each runtime to generate device-specific code.
+
+See also: `declare-runtime`
+
+### Options
+
+- name[keyword] the runtime name. this argument is also used for dispatching methods.
+- debug[integer]
+    - Specify an integer from 0..4
+        - 0 ignores all warnings
+        - 1 for displaying a signifcant error
+        - 2 for displaying an optimization warning
+        - 3 for displaying all progresses
+        - 4 for displaying compiled code.
+- indexing-rule[keyword]
+    - Specify one of :flatten or :ndarray. (it effects on trace-uops function.)
+        - :flatten for accessing the array elements with computing strides. (e.g.: A[10x + y])
+        - :ndarray for ignoring computing strides. (e.g.: A[x][y])
+
+"
   (name name :type keyword)
+  (indexing-rule indexing-rule :type (and keyword (member :flatten :ndarray)))
   (debug debug :type (integer 0 4))
   (group-for-reduces group-for-reduces :type fixnum)
   (upcasted upcasted :type fixnum)
@@ -28,12 +56,12 @@ Set RuntimeConfig to use.")
   (:documentation "[TODO] Renders the uop-graph"))
 
 (defgeneric render-buffer (backend buffer)
-  (:documentation "[TODO]"))
+  (:documentation "[TODO] Renders the buffer"))
 
 (defun realize (uop-graph composite &key (function-name (symbol-name (gensym "KID"))))
   "[TODO] Doc finsih the complitaion."
   (declare (type UOpGraph uop-graph))
-
+  
   (flet ((->make-const (scalar)
 	   (aten/ir::make-aten scalar :int nil nil nil)))
     (let ((new-uop-graph (copy-UOpGraph uop-graph))

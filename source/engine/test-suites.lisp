@@ -12,7 +12,8 @@
    (read-from-string code)))
 
 (defmacro define-simplify-test ((&rest inputs) code ((uops simplified-uop) &body body))
-  `(let* ((,uops (uops-from-lisp ',inputs ,code))
+  `(let* ((aten/engine::*runtime* (aten/engine::make-runtime :test-backend))
+	  (,uops (uops-from-lisp ',inputs ,code))
 	  (,simplified-uop (aten/engine:uops-simplify ,uops)))
      ,@body))
 

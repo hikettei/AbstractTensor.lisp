@@ -121,8 +121,8 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
 
   (define-buffer Aref
     "Refs [idx] from [name]"
-    ((name nil)
-     (idx nil))
+    ((name nil :type aten/ir:AbstractTensor)
+     (idx nil :type list))
     :read (aref-buffer-idx buffer))
 
   (deftype Buffers ()
@@ -393,48 +393,5 @@ write <- read
 	  (dolist (wn w)
 	    (when (stringp wn)
 	      (setf (gethash wn new-table) u))))))
-    (setf (uopgraph-saved-exprs graph) new-table)))		   
-
-;;(defun uop-vars (graph)
-;;  (declare (type UOpGraph graph))
-;;  (loop for op in (uopgraph-uops graph)
-;;	if (uop-define-global-p op)
-;;	  collect op))
-
-(defun uops-optimize (uops)
-  "## [function] uop-optimize
-Returns a list of optimized uops graph
-"
-  (declare (type list uops))
-
-  ;; Tinygrad: toplevel koko https://github.com/tinygrad/tinygrad/blob/master/tinygrad/codegen/linearizer.py#L322
-
-  ;; Here, we are going to call a set of optimization techniques. Function defined with % is destructive.
-  ;; A lot of optimization stuffs are behind
-  ;; - ./uops-simplifier.lisp (DAG Fusion, Constant Folding, etc)
-  ;; - ./uops-optimizer.lisp  (Unsafe Optimizations, Loop Optimization Techniques, etc)
-  (let* ((graph  (make-uopgraph uops)))
-    ;; SIMD/Shader用途にLoopを最適化
-
-    
-    ;; [./uops-simplifier.lisp]
-    ;; Simplifies the DAG Graph.
-    (%uopgraph-simplify           graph)
-    ;; Update the saved-expr table.
-    (%uopgraph-update-saved-exprs graph)
-
-    ;;(maphash
-    ;; #'(lambda (k v)
-    ;;	 (format t "~a -> ~a~%" k v))
-    ;;   (uopgraph-saved-exprs graph))
-
-    ;; [./uops-optimizer.lisp]
-    ;; Applies loop-oriented optimization techniques
-    (%uops-optimize-loops graph)
-
-    ;; Finally, Simplifies the DAG Graph Again.
-
-    (setf (UOpGraph-uops graph) (uops-simplify (UOpGraph-uops graph)))
-    graph
-    ))
+    (setf (uopgraph-saved-exprs graph) new-table)))
 

@@ -17,7 +17,12 @@
 ;;  Stride computation
 ;;  Graph simplification
 
-(aten/engine:declare-runtime :clang :debug 4)
+;; TODO: Export with-clang-runtime
+(aten/engine:declare-runtime
+ :clang
+ :debug 4
+ :indexing-rule :flatten ;; manually computes the strides
+ )
 
 (defparameter *headers* "
 #include <math.h>
@@ -43,6 +48,7 @@
      uop
      :defun
      ((inputs outputs named)
+      (incf *indent* 4)
       (let ((args
 	      (apply
 	       #'concatenate
@@ -78,8 +84,8 @@
      :enddefun
      ((named)
       (declare (ignore named))
-      (format stream "~a} // EndDefun~%" (indent))
-      (decf *indent* 4))     
+      (decf *indent* 4)
+      (format stream "~a} // EndDefun~%" (indent)))     
      :loop
      ((iter scope)
       (let ((id   (aten/engine:range-id   iter))
@@ -91,8 +97,8 @@
 	(incf *indent* 4)))
      :endloop
      ((iter option)
-      (format stream "~a} // EndLoop ~%" (indent))
-      (decf *indent* 4))
+      (decf *indent* 4)
+      (format stream "~a} // EndLoop ~%" (indent)))
      :load
      ((x1 x2)
       (multiple-value-bind (type pointer-p)

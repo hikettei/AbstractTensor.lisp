@@ -159,3 +159,69 @@
 
   ;; fix-to-store-directly (vectorize)
   )
+
+
+(defun %uops-insert-stride-computation (graph)
+  (declare (type UOpGraph graph))
+
+  ;; It creates a Simplifier scope that is independent of the external environment.
+  ;; (define-simplifiers here will produce no sideffects outside of this function.)
+
+  )
+
+(defun uops-optimize (uops)
+  "## [function] uop-optimize
+
+```
+(uops-optimize uops)
+```
+
+This is the top-level function for compiling UOps. Based on the compilation details specified in runtime, it rewrites the hardware-independent UOps into hardware-dependent graphs, which are then translated into each respective language.
+
+### Usage
+
+```lisp
+(with-clang-runtime
+   (uops-optimize uops))
+```
+"
+  (declare (type list uops))
+  
+  (assert *runtime* () "uops-optimize: *runtime* is not declared.")
+
+  ;; Here, we are going to call a set of optimization techniques. Function defined with % is destructive.
+  ;; A lot of optimization stuffs are behind
+  ;; - ./uops-simplifier.lisp (DAG Fusion, Constant Folding, etc)
+  ;; - ./uops-optimizer.lisp  (Unsafe Optimizations, Loop Optimization Techniques, etc)
+  
+  (let* ((graph  (make-uopgraph uops)))
+    ;; If :flatten is specified for indexing-rule, it inserts the calculation of strides.
+
+    (when (equal (runtimeconfig-indexing-rule *runtime*) :flatten)
+      (%uops-insert-stride-computation graph))
+
+    
+    ;; [TODO] SIMD/Shader用途にLoopを最適化
+    
+    ;; [./uops-simplifier.lisp]
+    ;; Simplifies the DAG Graph.
+    ;; e.g.: Constant Propagate, removes an isolated graph, op fusion if possible.
+    (%uopgraph-simplify           graph)
+    
+    ;; Update the saved-expr table.
+    ;;(%uopgraph-update-saved-exprs graph)
+
+    ;; (maphash
+    ;;  #'(lambda (k v)
+    ;;	  (format t "~a -> ~a~%" k v))
+    ;;    (uopgraph-saved-exprs graph))
+
+    ;; [./uops-optimizer.lisp]
+    ;; Applies loop-oriented optimization techniques
+    (%uops-optimize-loops graph)
+
+    ;; Finally, Simplifies the DAG Graph Again.
+    (%uopgraph-simplify graph)
+    graph
+    ))
+
