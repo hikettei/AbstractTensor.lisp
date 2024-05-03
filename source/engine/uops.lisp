@@ -54,14 +54,17 @@
 
 (defun eliminate-buffer (list f)
   ;; Recursively explores until buffer elimiated
-  (alexandria:flatten
-   (map
-    'list
-    #'(lambda (x)
-	(if (and (typep x 'buffers) (not (typep x 'graph-id)))
-	    (funcall f x)
-	    x))
-    list)))
+  (let ((result
+	  (alexandria:flatten
+	   (map
+	    'list
+	    #'(lambda (x)
+		(if (and (typep x 'buffers) (not (typep x 'graph-id)))
+		    (funcall f x)
+		    x))
+	    list))))
+    (loop for r in result
+	  if (typep r 'graph-id) collect r)))
 
 (defmethod uop-writes :around (uop)
   (let ((result (call-next-method)))
@@ -115,7 +118,7 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
      (type :float :type Dtypes)
      (pointer-p nil :type boolean))
     :read (typecase (const-buffer-value buffer)
-	    (aten/ir:AbstractTensor (list (aten/ir:aten-id (const-buffer-value buffer))))
+	    (aten/ir:AbstractTensor (list (symbol-name (aten/ir:aten-id (const-buffer-value buffer)))))
 	    (T (list (const-buffer-value buffer))))
     :write nil)
 
@@ -211,9 +214,20 @@ EndIF [ID]
     ""
     ())
 
+  (define-uop declare-var
+    "
+## UOp[declare-var]
+Ignore this op when compiling.
+"
+    ((var nil :type graph-id))
+    :write (list (uop-declare-var-var uop)))
+
   (define-uop define-local
-    ""
-    ())
+    "
+## UOp[define-local]
+Ignore this op when compiling."
+    ((var nil :type graph-id))
+    :write (list (uop-define-local-var uop)))
 
   (define-uop define-acc
     ""

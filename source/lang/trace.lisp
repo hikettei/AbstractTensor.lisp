@@ -39,7 +39,7 @@
 (defun graph-funcall (counter scope form)
   (flet ((explore (code)
 	   (graph-funcall counter scope code))
-	 (getscope (name)
+	 (getscope (name &aux (name (if (symbolp name) (symbol-name name) name)))
 	   (or (gethash name scope)
 	       (error "~a is not defined." name))))
     (trivia:ematch form
@@ -50,6 +50,7 @@
        ;; binds the iterator variables into bind
        (let* ((count (explore count))
 	      (count-idx (aten/engine:uop->buffer (car (last count))))
+	      (bind (symbol-name bind))
 	      (range (spawn-range bind 0 count-idx 1)))
 	 (setf (gethash bind scope) (cons bind :int))
 	 (prog1
@@ -72,6 +73,7 @@
        (let* ((from-uop (explore from))
 	      (to-uop   (explore to))
 	      (by-uop   (explore by))
+	      (bind (symbol-name bind))
 	      (from-buff (aten/engine:uop->buffer (car (last from-uop))))
 	      (to-buff   (aten/engine:uop->buffer (car (last to-uop))))
 	      (by-buff   (aten/engine:uop->buffer (car (last by-uop))))
@@ -225,8 +227,9 @@
       ;; variable
       ((or (type string) (type symbol))
        (let* ((name  (car (getscope form)))
-	      (name (if (aten/engine::uop-load-p name)
-			(aten/engine::uop-load-x1 name)
+	      (name (or (aten/engine:uop->buffer name) name))
+	      (name (if (symbolp name)
+			(symbol-name name)
 			name))
 	      (val (aten/engine:make-const-buffer :value name :type (cdr (getscope form)) :pointer-p nil))
 	      (val-id (read-counter counter 'val))
@@ -240,17 +243,24 @@
       (_
        (error "trace-uops: Cannot deal with this form: ~a" form)))))
 
-(defun trace-uops (inputs body &aux (scope (make-hash-table)) (counter (make-counter)))
+(defun trace-uops (inputs body &aux (scope (make-hash-table :test #'equal)) (counter (make-counter)) (declares))
   "Creates a computation graph from lisp-like DSL.
 !! aten/engine::*runtime* must be declared before compilation! to determine stride computation strategy"
   (declare (type list inputs body))
   (assert aten/engine::*runtime* () "trace-uops: *runtime* is not declared.")
 
   (dolist (input inputs)
-    (setf (gethash (intern (symbol-name (aten/ir:aten-id input))) scope) (cons input (aten/ir:aten-type-class input)))
+    (let ((input-id (symbol-name (aten/ir:aten-id input))))
+      (push (aten/engine:make-uop-declare-var :var input-id) declares)
+      (setf (gethash input-id scope)
+	    (cons input (aten/ir:aten-type-class input))))
+    
     ;; Register symbols
     (dolist (shape (aten/ir:aten-shape input))
-      (setf (gethash (intern (symbol-name shape)) scope) (cons shape :int))))
+      (let ((sid (symbol-name shape)))
+	(push (aten/engine:make-uop-declare-var :var sid) declares)
+	(setf (gethash sid scope) (cons sid :int)))))
 
-  (graph-funcall counter scope body))
+  `(,@declares
+    ,@(graph-funcall counter scope body)))
 

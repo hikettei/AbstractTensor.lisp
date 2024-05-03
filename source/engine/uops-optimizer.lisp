@@ -47,35 +47,6 @@
 (defun uops/user->values (uops value)
   (explore-uopgraph uops value :finder #'uop-writes))
 
-(defun recursively-find-parents (graph value)
-  (declare (type UOpGraph graph))
-  
-  (let ((keys (typecase value
-		(string (list value))
-		(symbol (list value))
-		(T      value))))
-
-    (when (not (listp keys))
-      (setf keys (list keys)))
-    
-    (loop for k in keys
-	  if (or (symbolp k) (stringp k))
-	    append
-	    (let ((results (user->values graph k)))
-	      (if results
-		  (alexandria:flatten
-		   (append
-		    results
-		    (map
-		     'list
-		     #'(lambda (x)
-			 (when (not (equal x value))
-			   (recursively-find-parents graph x)))
-		     results)))
-		  (list k)))
-	  else
-	    append (recursively-find-parents graph (uop-reads k)))))
-
 (defun recursively-find-deps (uops value)
   "Recursively explores what ids the value depends on."
   (declare (type list uops))
@@ -84,19 +55,27 @@
     (return-from recursively-find-deps nil))
   
   (let* ((readers (uops/user->values uops value))
-	 (buffers (map 'list #'uop->buffer readers)))
-    (append
-     buffers
-     (apply
-      #'append
-      (map
-       'list
-       #'(lambda (x)
-	   (when (not (equal x value))
-	     (recursively-find-deps uops x)))
-       buffers)))))
+	 (read-ids (loop for reader in readers
+			 append
+			 (loop for r in (uop-reads reader)
+			       if (typep r 'graph-id)
+				 collect r
+			       else
+				 collect (uops/user->values uops r))))
+	 (buffers (loop for x in (alexandria:flatten read-ids) if x collect x)))
+    (remove-duplicates
+     (append
+      buffers
+      (apply
+       #'append
+       (map
+	'list
+	#'(lambda (x)
+	    (when (not (string= x value))
+	      (recursively-find-deps uops x)))
+	buffers)))
+     :test #'equal)))
 
-;; deprecated?
 (defun compute-determined-iters (uops)
   (let ((iters))
     (dolist (uop uops)
@@ -104,8 +83,7 @@
 	(setf iters (append iters (uop-writes uop))))
       (when (uop-endloop-p uop)
 	(let ((rms (range-id (uop-endloop-iters uop))))
-	  (dolist (r rms)
-	    (setf iters (remove r iters))))))
+	  (setf iters (remove rms iters)))))
     iters))
 
 (defun %uops-fix-loop-scope (graph)
@@ -123,7 +101,7 @@
 			     (,@(last loop-stacks) ,u))))
 	(T
 	 ;; U is asserted that one of Const, ALU, Cast, Load
-	 (let ((parents (recursively-find-parents graph u)))
+	 (let ((parents (recursively-find-deps (uopgraph-uops graph) (uop->buffer u))))
 	   ;; dont push if any local buffers because there might have STORE and BARRIER (not considered as parent) between DEFINE_LOCAL and here
 	   (if (some #'uop-define-local-p parents)
 	       (setf loop-stacks `(,@(butlast loop-stacks)

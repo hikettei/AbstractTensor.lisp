@@ -42,10 +42,11 @@
 	       (if (symbolp object)
 		   (cName object)
 		   (if (numberp object)
-		       object
+		       (format nil "~a" object)
 		       (aten/engine:render-buffer :clang object))))))
     (aten/engine:uopcase
      uop
+     :declare-var ((var) (declare (ignore var)))
      :defun
      ((inputs outputs named)
       (incf *indent* 4)

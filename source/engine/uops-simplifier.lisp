@@ -22,22 +22,23 @@
 	    for position fixnum upfrom 0
 	    for reads  = (uop-reads u)
 	    for writes = (uop-writes u)
-	    ;;do (print "+++") (print u) (print (recursively-find-deps uops (uop->buffer u)))
-	    do (dolist (w writes) (push w seen))
 	    if (seen-p reads) do
+	      (dolist (w writes) (push w seen))
 	      (push u new-uops)
 	    else do
 	      (push (cons reads u) stashed)
 	    do (loop for (reads-old . u-old) in stashed
 		     if (seen-p reads-old)
 		       do (push u-old new-uops)
+			  (dolist (w (uop-writes u-old)) (push w seen))
 			  (setf stashed (remove u-old stashed :key #'cdr :test #'equal)))))
 
     ;; TODO: It is ok to exist isolated graphs; since they have no deps relocated to the top of the dag graph.
-    ;; (when (not (= (length uops) (length new-uops)))
-    ;;   (warn "resolve-isolated-uops: these UOPs are isolated from the DAG and removed:~%~a~%If your compiled code will not work well, that could be due to a bug of simplifiers." stashed))
+    (when (not (= (length uops) (length new-uops)))
+      (warn "resolve-isolated-uops: these UOPs are isolated from the DAG and removed:~%~a~%If your compiled code will not work well, that could be due to a bug of simplifiers." stashed))
     
-    `(,@(map 'list #'cdr stashed) ,@(reverse new-uops))))
+    ;;`(,@(map 'list #'cdr stashed) ,@(reverse new-uops))
+    (reverse new-uops)))
 
 (defmacro define-simplifier (name (uops) &body body)
   "
@@ -177,10 +178,122 @@ And body:
 	       ))))
 	(if changed-p uops nil)))))
 
-;; [TODO]
-;; Load-Loop Fuse
-;; Bijective Fuse A->B->C, A->C
+;; Arithmetic Simplification Patterns
+(macrolet ((def (name msg pattern)
+	     `(define-simplifier ,name (uops)
+		(symbol-macrolet ((->failed (return-from ,name nil)))
 
+		  ;; Finds this pattern in this order: X -> Z -> Y
+		  ;;
+		  ;; X
+		  ;; |   Y1
+		  ;;  \ /----Y2 ...
+		  ;;   Z
+		  ;;
+		  ;; pattern specifies the function which rewrites Z
+
+		  (when (not (uop-load-p (car uops)))->failed)
+		  (let* ((x  (car uops))
+			 (zs (uops/value->users uops (uop->buffer x)))
+			 (z  (car zs)))
+		    (when (not (= (length zs) 1))->failed)
+		    (when (not (uop-alu-p z))->failed)
+		    (let* ((ys
+			     (loop for a in (uop-reads z)
+				   collect
+				   (let ((result (uops/user->values uops a)))
+				     (when (not (= (length result) 1))->failed)
+				     (car result)))))
+		      (when (not (every #'uop-load-p ys))->failed)
+		      (let ((replacement (funcall #'(lambda ,@pattern) z ys)))
+			;; replacement = replacement for ALU(z)
+			
+			(when replacement
+			  (with-debug-level (3)
+			    (format t "~%[Simplifier] ~a ALU[~a] ~a -> ~a"
+				    ,msg
+				    (uop-alu-op-type z)
+				    ys
+				    replacement))	
+			  (append
+			   ;; Unused ys are expected to be purged by another simplifier.
+			   (remove-uops uops z)
+			   replacement)))))))))
+
+  (def Propagate-Constants
+      "Constant Propagation"
+    ((alu ys)
+     (when (not (find (uop-alu-op-type alu) `(:+ :- :* :/ := :< :<= :> :>= :muladd)))->failed)
+     (let* ((new-args
+	      (loop for y-old in ys
+		    for x1 = (uop-load-x1 y-old)
+		    for x2 = (uop-load-x2 y-old)
+		    collect
+		    (cond
+		      ((const-buffer-p x2)
+		       ;;  number string aten/ir:AbstractTensor keyword symbol
+		       (typecase (const-buffer-value x2)
+			 (number
+			  (let ((out (const-buffer-value x2)))
+			    (if (eql (uop-alu-op-type alu) :*)
+				(if (= out 1)
+				    nil
+				    out)
+				out)))
+			 
+			 (string  (const-buffer-value x2))
+			 (keyword (const-buffer-value x2))
+			 (symbol  (const-buffer-value x2))
+			 (aten/ir:AbstractTensor
+			  (assert (null (const-buffer-pointer-p x2)) () "Assertion failed")
+			  (aten/ir:aten-id (const-buffer-value x2)))))
+		      (T
+		       y-old))))
+	    (new-args (loop for x in new-args
+			    if x collect x))
+	    (new-args (if (every #'numberp new-args)
+			  (case (uop-alu-op-type alu)
+			    (:muladd (list (+ (* (nth 0 new-args) (nth 1 new-args)) (nth 2 new-args))))
+			    (T       (list (apply (intern (symbol-name (uop-alu-op-type alu))) new-args))))
+			  new-args))
+	    (new-args (if (and
+			   (find (uop-alu-op-type alu) `(:+ :*))
+			   (some #'numberp new-args))
+			  (loop named accumlator with stashed = nil
+				for arg in new-args
+				if (numberp arg) do
+				  (if (null stashed)
+				      (setf stashed arg)
+				      (setf stashed (funcall (intern (symbol-name (uop-alu-op-type alu))) stashed arg)))
+				finally
+				   (return-from
+				    accumlator
+				     `(,stashed
+				       ,@(loop for x in new-args
+					       if (not (numberp arg)) collect x))))				   
+			  new-args)))
+       (cond
+	 ((and (every #'numberp new-args) (= (length new-args) 1))
+	  (loop for x-write in (uop-alu-x-writes alu)
+		collect
+		(make-uop-load
+		 :x1 x-write
+		 :x2 (make-const-buffer
+		      :value (car new-args)
+		      :type (const-buffer-type (uop-load-x2 (car ys)))
+		      :pointer-p nil))))
+	 ((eql (uop-alu-op-type alu) :muladd)
+	  (trivia:match new-args
+	    ((list (type number) (type number) (type symbol))
+	     (list
+	      (make-uop-alu
+	       :x-writes (uop-alu-x-writes alu)
+	       :x-reads `(,(* (nth 0 new-args) (nth 1 new-args)) ,(nth 2 new-args))
+	       :op-type :+
+	       :dtype (uop-alu-dtype alu))))
+	    (_ nil)))
+		    
+	 (T nil))))))
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -205,6 +318,7 @@ the following optimizations are performed iteratively:
 - graph fusion.
 "
   (declare (type list uops))
+  
   (maphash
    #'(lambda (name simplifier)
        (declare (ignore name))

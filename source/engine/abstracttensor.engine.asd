@@ -4,6 +4,7 @@
   :author "hikettei <ichndm@gmail.com>"
   :licence "MIT"
   :serial t
+  :depends-on ("trivia")
   :components
   ((:file "package")
    (:file "dtypes")
