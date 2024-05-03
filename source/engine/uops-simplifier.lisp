@@ -131,12 +131,12 @@ And body:
 	      (map
 	       'list
 	       #'(lambda (wn)
-		   (uops/user->values uops wn))
+		   (uops/value->users uops wn))
 	       where-to-writes))))
-      
-      (when (or (null who-depends-on-load?) (some #'(lambda (x) x) who-depends-on-load?))->failed)
+
+      (when (and who-depends-on-load? (some #'(lambda (x) x) who-depends-on-load?))->failed)
       (with-debug-level (3)
-	(format t "[Simplifier] Purged: ~a" load))
+	(format t "[Simplifier] Purged: ~a~%" load))
       (cdr uops))))
 
 (define-simplifier FoldConstant[Loop] (uops)
@@ -211,7 +211,7 @@ And body:
 			       (with-debug-level (3)
 				 (format t "[Simplifier] LoadFusion ~a -> ~a~%" l replace-with))
 			       (make-uop-load
-				:x1 (uop-load-x2 l)
+				:x1 (uop-load-x1 l)
 				:x2 replace-with))
 		   else
 		     collect l)))
