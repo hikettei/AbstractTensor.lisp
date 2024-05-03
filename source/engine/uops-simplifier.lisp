@@ -10,6 +10,14 @@
 	unless (equal u target)
 	  collect u))
 
+(defun replace-uop (uops target replace-with)
+  (declare (type list uops))
+  (loop for u in uops
+	if (equal u target)
+	  collect replace-with
+	else
+	  collect u))
+
 (defun resolve-isolated-uops (uops)
   (declare (type list uops))
   (let ((new-uops)
@@ -34,8 +42,9 @@
 			  (setf stashed (remove u-old stashed :key #'cdr :test #'equal)))))
 
     ;; TODO: It is ok to exist isolated graphs; since they have no deps relocated to the top of the dag graph.
-    (when (not (= (length uops) (length new-uops)))
-      (warn "resolve-isolated-uops: these UOPs are isolated from the DAG and removed:~%~a~%If your compiled code will not work well, that could be due to a bug of simplifiers." stashed))
+    (with-debug-level (3)
+      (when (not (= (length uops) (length new-uops)))
+	(format t "[Simplifier] These nodes are isolated from the graph and purged in the simplification process. ~a" stashed)))
     
     ;;`(,@(map 'list #'cdr stashed) ,@(reverse new-uops))
     (reverse new-uops)))
@@ -171,12 +180,45 @@ And body:
 	       (replace! (range-to   (uop-loop-iters tgt)))
 	       (replace! (range-by   (uop-loop-iters tgt))))
 	      (UOp-Load
-	 ;      (let ((aref (uop-load-x2 tgt)))
-	;	 (when (aref-buffer-p aref)
-	;	   (dotimes (i (length (aref-buffer-idx aref)))
-	;	     (replace! (nth i (aref-buffer-idx aref)) :wrap ->aref-idx))))
+	 ;;      (let ((aref (uop-load-x2 tgt)))
+	;;	 (when (aref-buffer-p aref)
+	;;	   (dotimes (i (length (aref-buffer-idx aref)))
+	;;	     (replace! (nth i (aref-buffer-idx aref)) :wrap ->aref-idx))))
 	       ))))
 	(if changed-p uops nil)))))
+
+(define-simplifier Load-Fusion (uops)
+  (symbol-macrolet ((->failed (return-from Load-Fusion nil)))
+    ;;       x1  x2
+    ;; Load1 X <- Y
+    ;; Load2 Z <- X
+    ;;
+    ;; Rewrites Load2 with Load Z<-Y
+    ;; If this operation made Load1 isolated in the graph, Load1 is expected to be purged.
+    (when (not (uop-load-p (car uops)))->failed)
+    (let* ((load1 (car uops))
+	   (replace-with
+	     (if (const-buffer-p (uop-load-x2 load1))
+		 (uop-load-x2 load1)
+		 ->failed))
+	   (load2s (uops/value->users uops (uop->buffer load1)))
+	   (changed-p nil)
+	   (load2s-new
+	     (loop for l in load2s
+		   if (uop-load-p l)
+		     collect (progn
+			       (setf changed-p t)
+			       (with-debug-level (3)
+				 (format t "[Simplifier] LoadFusion ~a -> ~a~%" l replace-with))
+			       (make-uop-load
+				:x1 (uop-load-x2 l)
+				:x2 replace-with))
+		   else
+		     collect l)))
+      (loop for x in load2s
+	    for y in load2s-new
+	    do (setf uops (replace-uop uops x y)))
+      (when changed-p uops))))
 
 ;; Arithmetic Simplification Patterns
 (macrolet ((def (name msg pattern)
@@ -292,8 +334,10 @@ And body:
 	       :op-type :+
 	       :dtype (uop-alu-dtype alu))))
 	    (_ nil)))
-		    
-	 (T nil))))))
+	 ;; TODO: More
+	 (T nil)))))
+
+  )
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
