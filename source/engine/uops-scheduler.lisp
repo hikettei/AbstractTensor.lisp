@@ -41,7 +41,7 @@
 	(let* ((uop-loop  (car uops))
 	       (range-idx (range-id (uop-loop-iters uop-loop)))
 	       (end-loop  (find range-idx (cdr uops) :test #'equal :key #'(lambda (x) (and (uop-endloop-p x) (range-id (uop-endloop-iters x)))))))
-	  
+	       
 	  (when (null end-loop)->failed)
 
 	  ;; Only the innermost loops are the subject to this simplification.
@@ -55,8 +55,6 @@
 
 		if (> (length ids) 1)
 		  do (progn ->failed))
-
-	  ;; メモ[TODO]，最新部のループが二個以上ある時の実装
 	  
 	  ;; a requirement for applying this simplification:
 	  ;;  - Innermost Loop
