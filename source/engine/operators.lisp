@@ -14,6 +14,7 @@
      :>
      :>=
 
+     :mod
 
      ;; Special Ops
      :muladd ;; muladd(A, B, C) = A * B + C

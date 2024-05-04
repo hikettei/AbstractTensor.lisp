@@ -288,9 +288,10 @@
     
     ;; Register symbols
     (dolist (shape (aten/ir:aten-shape input))
-      (let ((sid (symbol-name shape)))
-	(push (aten/engine:make-uop-declare-var :var sid) declares)
-	(setf (gethash sid scope) (cons sid :int)))))
+      (when (not (numberp shape))
+	(let ((sid (symbol-name shape)))
+	  (push (aten/engine:make-uop-declare-var :var sid) declares)
+	  (setf (gethash sid scope) (cons sid :int))))))
 
   (tpsort
    `(,@declares

@@ -27,7 +27,7 @@
 		     (read-from-string (aten/ir:composite-code composite))))
 	 
 	 (graph     (or
-		     (aten/engine::with-debug-level (3)
+		     (aten/engine::with-debug-level (1)
 		       (time (aten/engine:uops-optimize uops)))
 		     (aten/engine:uops-optimize uops)))
 	 (code      (aten/engine:realize graph composite)))

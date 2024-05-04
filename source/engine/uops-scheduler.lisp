@@ -1,17 +1,6 @@
 
 (in-package :abstracttensor/engine)
 
-;; Utils for manipulating UOp-Loop and UOp-EndLoop
-;; including
-;;  - Unroll
-;;  - Split
-;;  - Reduce
-;;  et al.
-
-
-;; [TODO] SimplifierでAccumlationをループの外に出す最適化を実現したい。X += Yはreduce要の変数を作る的な感じで (OK)
-;; [TODO] Dynamic ShapeはUnrollできるところはUnrollして。。。みたいな実装にしたい。
-
 (defun %uopgraph-optimize-accumlation (graph &aux (count 0) (applied-p nil))
   "Attributes @reduction pharse"
   (declare (type UOpGraph graph))
@@ -152,3 +141,104 @@
     (%uopgraph-simplify graph)
     graph))
 
+
+;;
+;; Utils for manipulating UOp-Loop and UOp-EndLoop
+;; including
+;;  - Unroll
+;;  - Split
+;;  - Reduce
+;;  et al.
+;;
+
+(defun slice-loop-entity (uops idx)
+  (flet ((idx-reader (type-p read)
+	   #'(lambda (x) (and (funcall type-p x) (range-id (funcall read x))))))
+    (let ((start (position idx uops :test #'equal :key (idx-reader #'uop-loop-p #'uop-loop-iters)))
+	  (end   (position idx uops :test #'equal :key (idx-reader #'uop-endloop-p #'uop-endloop-iters))))
+      (assert (< start end) () "Invaild Graph Structure is detected. EndLoop comes before Loop")
+      (values (subseq uops start end) start end))))
+
+(defun unroll-uop (uop unroll-idx unroll-by)
+  ;; Load -> Unroll
+  ;; ALU -> Unroll
+  ;; etc
+  )
+
+(defun %uopgraph-unroll (graph idx unroll-by)
+  (declare (type UOpGraph graph)
+	   (type string idx)
+	   (type fixnum unroll-by))
+  (multiple-value-bind (loop-body start end) (slice-loop-entity (uopgraph-uops graph) idx)
+    (assert loop-body () "Loop(~a) is not defined." idx)
+    (let* ((loop-start (car loop-body))
+	   (old-range (uop-loop-iters loop-start))
+	   (loop-fixed?
+	     (and
+	      (numberp (range-from old-range))
+	      (numberp (range-by   old-range))
+	      (numberp (range-to   old-range))))
+	   (1by1?
+	     (equal 1 (range-by old-range))))
+
+      (when (not 1by1?)
+	(with-debug-level (3)
+	  (warn "%uopgraph-unroll is skipped because the `by` of the range ~a is not 1." old-range))
+	(return-from %uopgraph-unroll))      
+
+      (let* ((new-range (make-range
+			 :id   (range-id old-range)
+			 :from (range-from old-range)
+			 :to   (range-to   old-range)
+			 :by   unroll-by))
+	     (n-reminder-idx (format nil "_mod_~(~a~)_~a" (range-id old-range) unroll-by))
+	     (n-loopsize-idx (format nil "_len_~(~a~)_~a" (range-id old-range) unroll-by))
+
+	     ;; _len_n_16 = (- (range-to old-range) (range-from old-range))
+	     (loopsize       (if (and (numberp (range-to old-range)) (numberp (range-from old-range)))
+				 (- (range-to old-range) (range-from old-range))
+				 (make-uop-alu :x-writes (list n-loopsize-idx) :x-reads `(,(range-to old-range) ,(range-from old-range)) :op-type :- :dtype :int)))
+
+	     ;; _mod_n_16 = n-loopsize-idx // unroll-by
+	     (n-reminder-alu (make-uop-alu :x-writes (list n-reminder-idx) :x-reads `(,loopsize ,unroll-by) :op-type :mod :dtype :int))
+	     (reminder-range
+	       (if loop-fixed?
+		   ;; If the range of iter is fixed (i.e.: to/from/by is a number)
+		   ;; first compute whether there is reminder or not.
+		   (let ((n-reminder (mod (- (range-to old-range) (range-from old-range)) (range-by old-range))))
+		     (if (= n-reminder 0)
+			 nil ;; there is no need to prepare reminder loop.
+			 (make-range
+			  :id   (range-id old-range)
+			  :from (range-to old-range)
+			  :to   n-reminder
+			  :by 1)))
+		   
+		   ;; If the range of iter is consisted of dynamic shape
+		   ;; we basically renders a loop3 reminder.
+		   (make-range
+		    :id (range-id old-range)
+		    :from (range-to old-range)
+		    :to n-reminder-idx
+		    :by 1)))
+	     (loop-reminder
+	       (when reminder-range
+		 (append
+		  (when (and (not loop-fixed?) (not (numberp loopsize))) (list loopsize))
+		  (when (not loop-fixed?)                                (list n-reminder-alu))
+		  (list (make-uop-loop :iters reminder-range))
+		  (butlast (cdr loop-body))
+		  (list (make-uop-endloop :iters reminder-range)))))
+	     (unrolled-loop-body
+	       (append
+		(list (make-uop-loop :iters new-range))
+		(alexandria:flatten (map 'list #'(lambda (x) (unroll-uop x (range-id old-range) unroll-by)) (cdr (butlast loop-body))))
+		(list (make-uop-endloop :iters new-range))))
+	     (new-loop-body `(,@unrolled-loop-body ,@loop-reminder))
+	     (new-body `(,@(subseq (uopgraph-uops graph) 0 start)
+			 ,@new-loop-body
+			 ,@(subseq (uopgraph-uops graph) end))))
+	(setf (uopgraph-uops graph) new-body)))))
+	
+	
+	
