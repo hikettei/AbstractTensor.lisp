@@ -35,11 +35,19 @@
 	      (push u new-uops)
 	    else do
 	      (push (cons reads u) stashed)
-	    do (loop for (reads-old . u-old) in stashed
-		     if (seen-p reads-old)
-		       do (push u-old new-uops)
-			  (dolist (w (uop-writes u-old)) (push w seen))
-			  (setf stashed (remove u-old stashed :key #'cdr :test #'equal)))))
+	    end
+	    
+	    do (loop with finish-p = nil
+		     with changed-p = nil
+		     while (not finish-p)
+		     do (setf changed-p nil)			
+			(loop for (reads-old . u-old) in stashed
+			      if (seen-p reads-old)
+				do (push u-old new-uops)
+				   (setf changed-p t)
+				   (dolist (w (uop-writes u-old)) (push w seen))
+				   (setf stashed (remove u-old stashed :key #'cdr :test #'equal)))
+			(setf finish-p (not changed-p)))))
 
     ;; TODO: It is ok to exist isolated graphs; since they have no deps relocated to the top of the dag graph.
     (with-debug-level (3)
@@ -179,14 +187,14 @@ And body:
 	  (dolist (tgt targets)
 	    (typecase tgt
 	      (UOp-Loop
-	       (replace! (range-from (uop-loop-iters tgt)))
-	       (replace! (range-to   (uop-loop-iters tgt)))
-	       (replace! (range-by   (uop-loop-iters tgt))))
+	       (replace! (range-from (uop-loop-iters tgt)) :wrap const-buffer-value)
+	       (replace! (range-to   (uop-loop-iters tgt)) :wrap const-buffer-value)
+	       (replace! (range-by   (uop-loop-iters tgt)) :wrap const-buffer-value))
 	      (UOp-Load
-	 ;;      (let ((aref (uop-load-x2 tgt)))
-	;;	 (when (aref-buffer-p aref)
-	;;	   (dotimes (i (length (aref-buffer-idx aref)))
-	;;	     (replace! (nth i (aref-buffer-idx aref)) :wrap ->aref-idx))))
+	       ;;      (let ((aref (uop-load-x2 tgt)))
+	       ;;	 (when (aref-buffer-p aref)
+	       ;;	   (dotimes (i (length (aref-buffer-idx aref)))
+	       ;;	     (replace! (nth i (aref-buffer-idx aref)) :wrap ->aref-idx))))
 	       ))))
 	(if changed-p uops nil)))))
 
@@ -239,7 +247,7 @@ And body:
 
 		  (when (not (uop-load-p (car uops)))->failed)
 		  (let* ((x  (car uops))
-			 (zs (uops/value->users uops-full (uop->buffer x)))
+			 (zs (uops/value->users uops (uop->buffer x)))
 			 (z  (car zs)))
 		    (when (not (= (length zs) 1))->failed)
 		    (when (not (uop-alu-p z))->failed)
@@ -251,6 +259,7 @@ And body:
 				     (car result)))))
 		      (when (not (every #'uop-load-p ys))->failed)
 		      (let ((replacement (funcall #'(lambda ,@pattern) z ys)))
+			(declare (type list replacement))
 			;; replacement = replacement for ALU(z)
 			
 			(when replacement
@@ -259,12 +268,11 @@ And body:
 				    ,msg
 				    (uop-alu-op-type z)
 				    ys
-				    replacement))	
-			  (append
-			   ;; Unused ys are expected to be purged by another simplifier.
-			   (remove-uops uops z)
-			   replacement)))))))))
-
+				    replacement))
+			  ;; Unused ys are expected to be purged by another simplifier.
+			  ;; Note: replacement == list
+			  (alexandria:flatten (replace-uop uops z replacement))))))))))
+  
   (def Propagate-Constants
       "Constant Propagation"
     ((alu ys)
@@ -274,6 +282,7 @@ And body:
 		    for x1 = (uop-load-x1 y-old)
 		    for x2 = (uop-load-x2 y-old)
 		    collect
+		    ;; Here, allows to use Aref/Const Buffer (1)
 		    (cond
 		      ((const-buffer-p x2)
 		       ;;  number string aten/ir:AbstractTensor keyword symbol
@@ -285,15 +294,13 @@ And body:
 				    nil
 				    out)
 				out)))
-			 
-			 (string  (const-buffer-value x2))
-			 (keyword (const-buffer-value x2))
-			 (symbol  (const-buffer-value x2))
 			 (aten/ir:AbstractTensor
 			  (assert (null (const-buffer-pointer-p x2)) () "Assertion failed")
-			  (aten/ir:aten-id (const-buffer-value x2)))))
-		      (T
-		       y-old))))
+			  (aten/ir:aten-id (const-buffer-value x2)))
+			 (T (const-buffer-value x2))))
+		      ((aref-buffer-p x2)
+		       x2)
+		      (T ->failed))))
 	    (new-args (loop for x in new-args
 			    if x collect x))
 	    (new-args (if (every #'numberp new-args)
@@ -315,8 +322,11 @@ And body:
 				    accumlator
 				     `(,stashed
 				       ,@(loop for x in new-args
-					       if (not (numberp arg)) collect x))))				   
+					       if (not (numberp arg)) collect x))))
 			  new-args)))
+       ;; Loadx1 <- Loadx2をALUでやるとうまく行かない？・・・
+       ;; Arange/ALU両方で問題が発生する
+
        (cond
 	 ((and (every #'numberp new-args) (= (length new-args) 1))
 	  (loop for x-write in (uop-alu-x-writes alu)
@@ -336,9 +346,37 @@ And body:
 	       :x-reads `(,(* (nth 0 new-args) (nth 1 new-args)) ,(nth 2 new-args))
 	       :op-type :+
 	       :dtype (uop-alu-dtype alu))))
-	    (_ nil)))
-	 ;; TODO: More
-	 (T nil)))))
+	    (_
+	     nil
+	     )))
+	 ((= (length new-args) 1)
+	  (if (find (uop-alu-op-type alu) `(:+ :*))
+	      (loop for x-write in (uop-alu-x-writes alu)
+		    collect
+		    (make-uop-load
+		     :x1 x-write
+		     ;; (The code is suck but) note that this line corresponds with (1)
+		     ;; If you allow another buffer to pass at (1)
+		     ;; This line also needs to be changed.
+		     :x2 (cond
+			   ((aref-buffer-p (car new-args)) (car new-args))
+			   (T
+			    (make-const-buffer
+			     :value (car new-args)
+			     :type  (uop-alu-dtype alu)
+			     :pointer-p nil)))))
+	      nil))
+	 (T
+	  (list
+	   (make-uop-alu
+	    :x-writes (uop-alu-x-writes alu)
+	    :x-reads  (loop for arg in new-args
+			    if (or (numberp arg) (typep arg 'graph-id))
+			      collect arg
+			    else
+			      collect (uop->buffer arg))
+	    :op-type (uop-alu-op-type alu)
+	    :dtype   (uop-alu-dtype alu))))))))
 
   )
 
@@ -376,7 +414,7 @@ the following optimizations are performed iteratively:
    *simplifiers*)
   (if changed
       (uops-simplify (resolve-isolated-uops uops))
-      uops))
+      (resolve-isolated-uops uops)))
 
 (defun %uopgraph-simplify (graph)
   (declare (type UOpGraph graph))

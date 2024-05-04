@@ -10,25 +10,6 @@
 
 (in-package :abstracttensor/engine)
 
-;; ~~ Range Interface ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-(deftype graph-id ()
-  `(or symbol string))
-
-(defstruct Range
-  "Range: for (int id=from; from<to; id+=by)"
-  (id)
-  (from)
-  (to)
-  (by))
-
-(defmethod print-object ((obj range) stream)
-  (format stream "<Range[~a]: from ~a to ~a by ~a>"
-	  (range-id obj)
-	  (range-from obj)
-	  (range-to obj)
-	  (range-by obj)))
-
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun symb (&rest args)
     (intern (with-output-to-string (c) (dolist (a args) (princ a c))))))
@@ -114,7 +95,7 @@
   (define-buffer Const
     "Loads a constant scalar value.
 Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symbol"
-    ((value nil :type (or number string aten/ir:AbstractTensor keyword symbol))
+    ((value nil   :type (or number string aten/ir:AbstractTensor))
      (type :float :type Dtypes)
      (pointer-p nil :type boolean))
     :read (typecase (const-buffer-value buffer)
@@ -127,9 +108,28 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
     ((name nil :type aten/ir:AbstractTensor)
      (idx nil :type list))
     :read (aref-buffer-idx buffer))
-
+  
   (deftype Buffers ()
     `(or Const-Buffer Aref-Buffer String))
+
+  ;; ~~ Range Interface ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  (deftype graph-id ()
+    `(or string))
+
+  (defstruct Range
+    "Range: for (int id=from; from<to; id+=by)"
+    (id ""   :type graph-id)
+    (from "" :type (or number Buffers))
+    (to ""   :type (or number Buffers))
+    (by ""   :type (or number Buffers)))
+
+  (defmethod print-object ((obj range) stream)
+    (format stream "<Range[~a]: from ~a to ~a by ~a>"
+	    (range-id obj)
+	    (range-from obj)
+	    (range-to obj)
+	    (range-by obj)))
 
   ;; ~~ UOps ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   (define-uop Defun
@@ -181,7 +181,14 @@ As of now, option is one of following:
     ((iters nil :type Range)
      (option :none :type (and keyword (member :none :reduce))))
     :write nil
-    :read  nil)
+    :read  (let ((range (uop-endloop-iters uop)))
+	     (list
+	      (when (not (numberp (range-from range)))
+		(range-from range))
+	      (when (not (numberp (range-to range)))
+		(range-to range))
+	      (when (not (numberp (range-by range)))
+		(range-by range)))))
 
   (define-uop If
     "
@@ -256,7 +263,13 @@ Stores the value of buffer x2 into x1.
 "
     ((x1 nil :type Buffers)
      (x2 nil :type String))
-    :read  (uop-store-x2 uop)
+    :read  (append
+	    (list (uop-store-x2 uop))
+	    ;; Aref[X1, X2] <- ZZZ
+	    ;;     ^ Store depends on X1 and X2
+	    (when (aref-buffer-p (uop-store-x1 uop))
+	      (aref-buffer-idx (uop-store-x1 uop))))
+	      
     :write (uop-store-x1 uop))
 
   ;; Not anymore used?

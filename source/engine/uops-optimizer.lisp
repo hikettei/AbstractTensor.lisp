@@ -139,14 +139,6 @@
   )
 
 
-(defun %uops-insert-stride-computation (graph)
-  (declare (type UOpGraph graph))
-
-  ;; It creates a Simplifier scope that is independent of the external environment.
-  ;; (define-simplifiers here will produce no sideffects outside of this function.)
-
-  )
-
 (defun uops-optimize (uops)
   "## [function] uop-optimize
 
@@ -172,13 +164,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
   ;; - ./uops-simplifier.lisp (DAG Fusion, Constant Folding, etc)
   ;; - ./uops-optimizer.lisp  (Unsafe Optimizations, Loop Optimization Techniques, etc)
   
-  (let* ((graph  (make-uopgraph uops)))
-    ;; If :flatten is specified for indexing-rule, it inserts the calculation of strides.
-
-    (when (equal (runtimeconfig-indexing-rule *runtime*) :flatten)
-      (%uops-insert-stride-computation graph))
-
-    
+  (let* ((graph  (make-uopgraph uops)))    
     ;; [TODO] SIMD/Shader用途にLoopを最適化
     
     ;; [./uops-simplifier.lisp]

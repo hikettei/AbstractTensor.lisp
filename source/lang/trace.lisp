@@ -13,7 +13,11 @@
   (format nil "~(~a~)_~a" name (slot-value counter name)))
 
 (defun spawn-range (id from to by)
-  (make-range :id id :from from :to to :by by))
+  (flet ((->gid (value)
+	   (if (symbolp value)
+	       (symbol-name value)
+	       value)))
+    (make-range :id (->gid id) :from (->gid from) :to (->gid to) :by (->gid by))))
 
 (defun lazy-stride-statement (subscripts strides shape)
   (let ((stacks `(1)))
@@ -77,7 +81,7 @@
 	      (from-buff (aten/engine:uop->buffer (car (last from-uop))))
 	      (to-buff   (aten/engine:uop->buffer (car (last to-uop))))
 	      (by-buff   (aten/engine:uop->buffer (car (last by-uop))))
-	      (range    (spawn-range bind from-buff to-buff by-buff)))
+	      (range     (spawn-range bind from-buff to-buff by-buff)))
 	 (setf (gethash bind scope) (cons bind :int))
 	 (prog1
 	     `(,@from-uop
@@ -226,11 +230,11 @@
 	  op)))
       ;; variable
       ((or (type string) (type symbol))
-       (let* ((name  (car (getscope form)))
+       (let* ((name (car (getscope form)))
 	      (name (or (aten/engine:uop->buffer name) name))
 	      (name (if (symbolp name)
 			(symbol-name name)
-			name))
+			name))      
 	      (val (aten/engine:make-const-buffer :value name :type (cdr (getscope form)) :pointer-p nil))
 	      (val-id (read-counter counter 'val))
 	      (op  (aten/engine:make-uop-load
