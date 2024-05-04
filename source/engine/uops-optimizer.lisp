@@ -173,6 +173,12 @@ This is the top-level function for compiling UOps. Based on the compilation deta
     ;; 4. Before applying linearlizer, we simplifies the UOps graph again for simplicity
     (%uopgraph-simplify graph)
     ;; 5. Applying linearlizer depending on the runtimeconfig.
+
+    ;; 6. Attributing @reduction
+    (%uopgraph-optimize-accumlation graph)
+    ;; ( DO NOT USE %oopgraph-simplify in the subsequence pipeline! otherwise @reduction breaks)
+
+    ;; 7. Parallelize
     (case (runtimeconfig-vectorize-strategy *runtime*)
       (:disabled nil) ;; Ignored
       (:vector
@@ -181,10 +187,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
       (:scalar
        (warn "strategy=scalar is not ready!")
        nil))
-					    
-    
-    ;; 6. Before finishing the compilation process, we simplifies the graph again.
-    (%uopgraph-simplify graph)
-    ;; 7. It's all! returns the optimized UOpGraph structure.
+					      
+    ;; 8. It's all! returns the optimized UOpGraph structure.
     graph))
 

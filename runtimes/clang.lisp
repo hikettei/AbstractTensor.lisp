@@ -89,7 +89,7 @@
       (decf *indent* 4)
       (format stream "~a} // EndDefun~%" (indent)))     
      :loop
-     ((iter scope)
+     ((iter)
       (let ((id   (aten/engine:range-id   iter))
 	    (from (aten/engine:range-from iter))
 	    (to   (aten/engine:range-to   iter))
@@ -98,22 +98,24 @@
 		(indent) (->buffer id) (->buffer from) (->buffer id) (->buffer to) (->buffer id) (->buffer by))
 	(incf *indent* 4)))
      :endloop
-     ((iter option)
+     ((iter)
       (decf *indent* 4)
       (format stream "~a} // EndLoop ~%" (indent)))
      :load
-     ((x1 x2)
+     ((x1 x2 reduction)
       (multiple-value-bind (type pointer-p)
 	  (aten/engine:infer-buffer-type x2)
 	(format stream "~a~(~a~) ~a~a = ~a; // UOp.Load~%" (indent) type (if pointer-p "*" "") (->buffer x1) (->buffer x2))))
      :alu
-     ((x-writes x-reads op-type dtype)
+     ((x-writes x-reads op-type dtype reduction)
       (cond
 	((eql op-type :muladd)
 	 ;; out = A * B + C;
-	 (format stream "~a~a ~a = ~a * ~a + ~a;~%"
+	 (format stream "~a~a~a = ~a * ~a + ~a;~%"
 		 (indent)
-		 (cName dtype)
+		 (if reduction
+		     ""
+		     (format nil "~a " (cName dtype)))
 		 (->buffer (nth 0 x-writes))
 		 (->buffer (nth 0 x-reads))
 		 (->buffer (nth 1 x-reads))
@@ -136,7 +138,7 @@
 	 (error "Not implemented fcall: ~a" op-type)
 	 )))
      :store
-     ((x1 x2)
+     ((x1 x2 reduction)
       (format stream "~a~a = ~a; // UOp.Store~%" (indent) (->buffer x1) (->buffer x2))))))
 
 (defmethod aten/engine:render-graph ((backend (eql :clang)) uopgraph)

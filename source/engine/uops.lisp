@@ -260,7 +260,8 @@ Store [x1] [x2]
 Stores the value of buffer x2 into x1.
 "
     ((x1 nil :type Buffers)
-     (x2 nil :type String))
+     (x2 nil :type String)
+     (reduction nil :type (or null string)))
     :read  (append
 	    (list (uop-store-x2 uop))
 	    ;; Aref[X1, X2] <- ZZZ
@@ -293,7 +294,8 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
     ((x-writes nil :type list)
      (x-reads nil :type list)
      (op-type nil :type Operators)
-     (dtype   nil :type Dtypes))
+     (dtype   nil :type Dtypes)
+     (reduction nil :type (or null string)))
     :read  (uop-alu-x-reads uop)
     :write (uop-alu-x-writes uop))
   (defmethod print-object ((alu UOp-ALU) stream)
