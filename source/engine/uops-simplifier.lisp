@@ -260,7 +260,7 @@ And body:
 				   (let ((result (uops/user->values uops-full a)))
 				     (when (not (= (length result) 1))->failed)
 				     (car result)))))
-		      (when (not (every #'uop-load-p ys))->failed)
+		      (when (not (every #'(lambda (x) (or (uop-load-p x) (uop-alu-p x))) ys))->failed)
 		      (let ((replacement (funcall #'(lambda ,@pattern) z ys)))
 			(declare (type list replacement))
 			;; replacement = replacement for ALU(z)
@@ -282,30 +282,34 @@ And body:
      (when (not (find (uop-alu-op-type alu) `(:+ :- :* :/ := :< :<= :> :>= :muladd)))->failed)
      (let* ((new-args
 	      (loop for y-old in ys
-		    for x1 = (uop-load-x1 y-old)
-		    for x2 = (uop-load-x2 y-old)
-		    collect
-		    ;; Here, allows to use Aref/Const Buffer (1)
-		    (cond
-		      ((const-buffer-p x2)
-		       ;;  number string aten/ir:AbstractTensor keyword symbol
-		       (typecase (const-buffer-value x2)
-			 (number
-			  (let ((out (const-buffer-value x2)))
-			    (if (eql (uop-alu-op-type alu) :*)
-				(if (= out 1)
-				    nil
-				    out)
-				out)))
-			 (aten/ir:AbstractTensor
-			  (assert (null (const-buffer-pointer-p x2)) () "Assertion failed")
-			  (aten/ir:aten-id (const-buffer-value x2)))
-			 (T (const-buffer-value x2))))
-		      ((aref-buffer-p x2)
-		       x2)
-		      (T ->failed))))
-	    (new-args (loop for x in new-args
-			    if x collect x))
+		    if (uop-load-p y-old)
+		      collect
+		      (multiple-value-bind (x1 x2)
+			  (values (uop-load-x1 y-old)
+				  (uop-load-x2 y-old))
+			(declare (ignore x1))
+			;; Here, allows to use Aref/Const Buffer (1)
+			(cond
+			  ((const-buffer-p x2)
+			   ;;  number string aten/ir:AbstractTensor keyword symbol
+			   (typecase (const-buffer-value x2)
+			     (number
+			      (let ((out (const-buffer-value x2)))
+				(if (eql (uop-alu-op-type alu) :*)
+				    (if (= out 1)
+					nil
+					out)
+				    out)))
+			     (aten/ir:AbstractTensor
+			      (assert (null (const-buffer-pointer-p x2)) () "Assertion failed")
+			      (aten/ir:aten-id (const-buffer-value x2)))
+			     (T (const-buffer-value x2))))
+			  ((aref-buffer-p x2)
+			   x2)
+			  (T ->failed)))
+		    if (uop-alu-p y-old)
+		      collect (car (uop-alu-x-writes y-old))))
+	    (new-args (loop for x in new-args if x collect x))
 	    (new-args (if (every #'numberp new-args)
 			  (case (uop-alu-op-type alu)
 			    (:muladd (list (+ (* (nth 0 new-args) (nth 1 new-args)) (nth 2 new-args))))
