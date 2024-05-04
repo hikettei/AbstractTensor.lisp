@@ -115,14 +115,16 @@ And body:
 	(append
 	 (list
 	  (make-uop-alu
-	   :x-writes add-writes
+	   :x-writes add-writes	   
 	   ;; C = A * B + C
-	   :x-reads (let ((args (loop for arg in add-reads
-				      if (string= arg (car mul-writes))
-					append mul-reads
-				      else
-					append (list arg))))
-		      (list (nth 1 args) (nth 2 args) (nth 0 args)))
+	   :x-reads
+	   (let ((a (car mul-reads))
+		 (b (second mul-reads))
+		 (c (loop named find-c
+			  for r in add-reads
+			  if (not (string= r (car mul-writes)))
+			    do (return-from find-c r))))
+	     (list a b c))
 	   :op-type :muladd
 	   :dtype (uop-alu-dtype add)))
 	 (remove-uops

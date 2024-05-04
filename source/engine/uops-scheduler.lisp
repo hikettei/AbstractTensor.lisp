@@ -96,7 +96,7 @@
 					   ;; (cons ALU Store)
 					   (cons (car values) uop)))))))))))
 		 (stores-to-rewrite
-		   (loop for x in (print stores-to-rewrite) if x collect x))
+		   (loop for x in stores-to-rewrite if x collect x))
 		 (accumlators
 		   ;; It is asserted that there's no other accumlators
 		   ;; so we can count the idx from zero.
@@ -129,6 +129,8 @@
 	    
 	    (loop for (alu . store) in stores-to-rewrite
 		  for accumlator in accumlators do
+		    (with-debug-level (3)
+		      (format t "[Simplifier] Detected Reduction: ~a ~a~%" accumlator alu))
 		    (setf uops
 			  (replace-uop
 			   uops alu

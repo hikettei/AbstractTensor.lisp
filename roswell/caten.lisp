@@ -16,6 +16,7 @@
 (defun run-compilation (path runtime debug)
   
   ;; Runtime Configuration
+
   ;; [TODO] If runtime not found, search from ./runtimes
   (load runtime)
 
@@ -31,8 +32,8 @@
 		     (aten/engine:uops-optimize uops)))
 	 (code      (aten/engine:realize graph composite)))
     (print code)
-    (print graph)
-    ))
+    (aten/engine::with-debug-level (4)
+      (print graph))))
 
 (defun caten/handler (cmd)
   (let* ((path (clingon:getopt cmd :input))
