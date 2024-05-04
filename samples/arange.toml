@@ -1,0 +1,13 @@
+[composite]
+documentation = """
+Loads out with ax+b.
+"""
+name = "Arange"
+inputs = ["OUT{Float}[i]<0>()", "A{Float}[]<>()", "B{Float}[]<>()"]
+outputs = ["OUT"]
+
+[implementation]
+code = """
+(dotimes (nth i)
+    (setf (aref out nth) (+ (* a nth) b)))
+"""

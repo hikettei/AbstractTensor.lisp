@@ -48,6 +48,7 @@
 - [ ] TinygradのScheduling, Loweringをもってくる。
 - コンセプトはこう:
     - UOpsに対して難しい最適化Polyhedral Compilationはしない。(その代わり手動で各段階でループのオーダーだけチューニングしておく) -> after, simdify or grouping.
+    - ^ メモリ帯域幅の事考えるとPolyhedral Compilationは欲しい。でもUOpのレベルじゃなくて，コンパイル元Lispコードの段階でできないか？(ループの順番入れ替えるだけだし，コードを難しくしたくない)
     - 27のPrinciple Operatorがある。(Including Take, If, etc...)
     - Composite = 27 Opsを組み合わせて複雑な命令(ReLU, Conv2D, Gemm...)を表現
     - In-Placeにこだわりすぎなくていい (LayerNormとか，ある程度でかいブロックでおk)
