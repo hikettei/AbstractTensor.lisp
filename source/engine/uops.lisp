@@ -155,8 +155,7 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
 Loop iter, scope.
 ```
 "
-    ((iters nil :type Range)
-     (scope :global :type (and keyword (member :global :local))))
+    ((iters nil :type Range))
 
     :write (list (range-id (uop-loop-iters uop)))
     :read  (let ((range (uop-loop-iters uop)))
@@ -178,8 +177,7 @@ As of now, option is one of following:
 - :reduce
 - :none
 "
-    ((iters nil :type Range)
-     (option :none :type (and keyword (member :none :reduce))))
+    ((iters nil :type Range))
     :write nil
     :read  (let ((range (uop-endloop-iters uop)))
 	     (list
@@ -194,20 +192,19 @@ As of now, option is one of following:
     "
 ## Uop[If]
 ```
-If [Condition] [ID]
+If [Condition]
 ```
 "
-    ((condition nil)
-     (id nil)))
+    ((condition nil :type Buffers)))
 
   (define-uop EndIf
     "
 ## Uop[EndIF]
 ```
-EndIF [ID]
+EndIF
 ```
 "
-    ((id nil)))
+    ())
 
   (define-uop Special
     ""
@@ -249,7 +246,8 @@ Load [x1] [x2]
 Stores x2 into x1.
 "
     ((x1 nil :type Buffers)
-     (x2 nil :type Buffers))
+     (x2 nil :type Buffers)
+     (reduction nil :type (or null string)))
     :read  (uop-load-x2 uop)
     :write (uop-load-x1 uop))
 
@@ -269,7 +267,7 @@ Stores the value of buffer x2 into x1.
 	    ;;     ^ Store depends on X1 and X2
 	    (when (aref-buffer-p (uop-store-x1 uop))
 	      (aref-buffer-idx (uop-store-x1 uop))))
-	      
+    
     :write (uop-store-x1 uop))
 
   ;; Not anymore used?
@@ -401,24 +399,5 @@ write <- read
 
 (defstruct (UOpGraph
 	    (:constructor make-uopgraph (uops)))
-  (uops uops :type list)
-
-  ;; A pair of: val_XXX and UOP
-  (saved-exprs (make-hash-table) :type hash-table))
-
-(defun %uopgraph-update-saved-exprs (graph)
-  (declare (type UOpGraph graph))
-  (let ((new-table (make-hash-table :test 'equal)))
-    (loop for u in (uopgraph-uops graph) do
-      (let ((w (uop-writes u)))
-	;; Collecting a pair of alu and Ops of:
-	;; val_x = xxx
-	;; alu_x = xxx
-	(when (stringp w)
-	  (setf (gethash w new-table) u))
-	(when (listp w)
-	  (dolist (wn w)
-	    (when (stringp wn)
-	      (setf (gethash wn new-table) u))))))
-    (setf (uopgraph-saved-exprs graph) new-table)))
+  (uops uops :type list))
 

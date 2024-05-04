@@ -20,12 +20,13 @@
 ;; TODO: Export with-clang-runtime
 (aten/engine:declare-runtime
  :clang
- :debug 4
  :indexing-rule :flatten ;; manually computes the strides
  )
 
 (defparameter *headers* "
-#include <math.h>
+#include <x86intrin.h>
+#include <omp.h>
+#include <sleef.h>
 ")
 
 (defparameter *indent* 0)
@@ -67,7 +68,7 @@
 			      (if scalar-p
 				  ""
 				  " *")
-			      (if output-p
+			      (if t; output-p
 				  (if scalar-p
 				      " "
 				      " restrict ")

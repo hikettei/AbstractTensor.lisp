@@ -20,7 +20,9 @@
    (:file "runtime")
    (:file "uops-simplifier")
    (:file "uops-optimizer")
-   (:file "uops-linearizer"))
+   (:file "uops-scheduler")
+   (:file "uops-linearizer")
+   (:file "uops-vectorizer"))
   :in-order-to ((test-op (asdf:test-op "abstracttensor.engine/test"))))
 
 (asdf:defsystem "abstracttensor.engine/test"

@@ -3,13 +3,17 @@ documentation = """
 Multiplies two matrices.
 """
 name = "Gemm"
-inputs = ["A{float}[i j]<1 0>()", "B{float}[j k]<1 0>()", "C{float}[i k]<1 0>()"]
+# M N, N K -> M K
+# M = A
+# N = B
+# K = C
+inputs = ["A{float}[M N]<1 0>()", "B{float}[N K]<1 0>()", "C{float}[M K]<1 0>()"]
 outputs = ["C"]
 
 [implementation]
 code = """
-(dotimes (i1 i)
-    (dotimes (j1 j)
-        (dotimes (k1 k)
-	    (incf (aref c i1 k1) (* (aref a i1 j1) (aref b j1 k1))))))
+(dotimes (i_1 M)
+    (dotimes (j_1 N)
+        (dotimes (k_1 K)
+	    (incf (aref c i_1 j_1) (* (aref a i_1 k_1) (aref b k_1 j_1))))))
 """

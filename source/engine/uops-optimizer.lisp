@@ -121,21 +121,14 @@
 			    (return-from dep-check))))))))
     (setf (uopgraph-uops graph) (alexandria:flatten loop-stacks))))
 
-(defun %uops-simplify-loops (graph)
-  (declare (type UOpGraph graph))
-
-  )
-
 (defun %uops-optimize-loops (graph)
   (declare (type UOpgraph graph))
 
   ;; Fix loop scope, push uops upward out of loop if it does not depend on the loop
   (%uops-fix-loop-scope graph)
 
-  ;; Simplifies the loop
-  (%uops-simplify-loops graph)
-
-  ;; fix-to-store-directly (vectorize)
+  ;; TODO: Loop Elimination
+  ;; e.g.: removes a loop where total_size=1
   )
 
 
@@ -158,34 +151,40 @@ This is the top-level function for compiling UOps. Based on the compilation deta
   (declare (type list uops))
   
   (assert *runtime* () "uops-optimize: *runtime* is not declared.")
-
+  
   ;; Here, we are going to call a set of optimization techniques. Function defined with % is destructive.
   ;; A lot of optimization stuffs are behind
   ;; - ./uops-simplifier.lisp (DAG Fusion, Constant Folding, etc)
   ;; - ./uops-optimizer.lisp  (Unsafe Optimizations, Loop Optimization Techniques, etc)
+  ;; - ./uops-vectorizer.lisp  (for Vector Computor Archs)
+  ;; - ./uops-linearlizer.lisp (for Scalar Computor Archs)
   
-  (let* ((graph  (make-uopgraph uops)))    
-    ;; [TODO] SIMD/Shader用途にLoopを最適化
+  ;; 1. Creates the UOpGraph Object.
+  (let* ((graph  (make-uopgraph uops)))
+
+    ;; 2. Applies the first (user-defined) simplification process.
     
-    ;; [./uops-simplifier.lisp]
-    ;; Simplifies the DAG Graph.
+    ;; See also: [./uops-simplifier.lisp]
+    ;; Applies the simplifiers defined by `define-simplifier` macros.
     ;; e.g.: Constant Propagate, removes an isolated graph, op fusion if possible.
-    (%uopgraph-simplify           graph)
-    
-    ;; Update the saved-expr table.
-    ;;(%uopgraph-update-saved-exprs graph)
-
-    ;; (maphash
-    ;;  #'(lambda (k v)
-    ;;	  (format t "~a -> ~a~%" k v))
-    ;;    (uopgraph-saved-exprs graph))
-
-    ;; [./uops-optimizer.lisp]
-    ;; Applies loop-oriented optimization techniques
+    (%uopgraph-simplify   graph)
+    ;; 3. Applies loop-oriented optimization techniques.
     (%uops-optimize-loops graph)
-
-    ;; Finally, Simplifies the DAG Graph Again.
+    ;; 4. Before applying linearlizer, we simplifies the UOps graph again for simplicity
     (%uopgraph-simplify graph)
-    graph
-    ))
+    ;; 5. Applying linearlizer depending on the runtimeconfig.
+    (case (runtimeconfig-vectorize-strategy *runtime*)
+      (:disabled nil) ;; Ignored
+      (:vector
+       
+       )
+      (:scalar
+       (warn "strategy=scalar is not ready!")
+       nil))
+					    
+    
+    ;; 6. Before finishing the compilation process, we simplifies the graph again.
+    (%uopgraph-simplify graph)
+    ;; 7. It's all! returns the optimized UOpGraph structure.
+    graph))
 

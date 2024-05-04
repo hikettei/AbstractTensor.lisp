@@ -12,7 +12,9 @@ Set RuntimeConfig to use.")
 					&key
 					  (debug 0)
 					  (indexing-rule :flatten)
-
+					  (vectorize-strategy :disabled)
+					  (simd-n-register -1)
+					  
 					  (group-for-reduces 1)
 					  (upcasted 1)
 					  (dont-use-locals nil))))
@@ -39,11 +41,27 @@ See also: `declare-runtime`
     - Specify one of :flatten or :ndarray. (it effects on trace-uops function.)
         - :flatten for accessing the array elements with computing strides. (e.g.: A[10x + y])
         - :ndarray for ignoring computing strides. (e.g.: A[x][y])
+- vectorize-strategy[keyword]
+    - Declares the approach for attempting parallelization.
+        - :disable to ignore the parallelization optimization process.
+        - :vector  to use CPU and SIMD.
+        - :scalar  to use GPU.
+
+- simd-n-register[fixnum]
+    - If vectorize-strategy=:vector is selected, specify here the size of simd register.
 
 "
   (name name :type keyword)
   (indexing-rule indexing-rule :type (and keyword (member :flatten :ndarray)))
   (debug debug :type (integer 0 4))
+
+  ;; Parallelization
+  (vectorize-strategy vectorize-strategy :type (and keyword (member :disabled :vector :scalar)))
+
+  ;; Configs for Vector Computor
+  (simd-n-register simd-n-register :type fixnum)
+
+  ;; Configs for Scalar Computor
   (group-for-reduces group-for-reduces :type fixnum)
   (upcasted upcasted :type fixnum)
   (dont-use-locals dont-use-locals :type boolean))

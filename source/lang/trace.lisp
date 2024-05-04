@@ -3,6 +3,7 @@
 
 (defstruct Counter
   "gensym alternative"
+  (cache (make-hash-table :test #'equalp) :type hash-table)
   (val 0 :type fixnum)
   (alu 0 :type fixnum))
 
@@ -40,12 +41,21 @@
 ;; ->   (dotimes (y ...)
 ;; ->       (op ... mitaini suru)))
 ;; - TODO: Imrpove the quality of error message
+;; - TODO: this tracer is experimental. refactor this file for furure release.
 (defun graph-funcall (counter scope form)
   (flet ((explore (code)
 	   (graph-funcall counter scope code))
 	 (getscope (name &aux (name (if (symbolp name) (symbol-name name) name)))
 	   (or (gethash name scope)
-	       (error "~a is not defined." name))))
+	       (error "~a is not defined." name)))
+	 (cache (value id dtype)
+	   (or
+	    (gethash value (counter-cache counter))
+	    (setf (gethash value (counter-cache counter)) (cons id dtype))))
+	 (read-cache (content)
+	   ;; Equivalent to doing tpsort
+	   (car (gethash content (counter-cache counter)))))
+	    
     (trivia:ematch form
       ;; Iteration over var
       ;; (dotimes (i var) ..)
@@ -60,12 +70,10 @@
 	 (prog1
 	     `(,@count
 	       ,(aten/engine:make-uop-loop
-		 :iters range
-		 :scope :global)
+		 :iters range)
 	       ,@(apply #'append (map 'list #'explore (cddr form)))
 	       ,(aten/engine:make-uop-endloop
-		 :iters range
-		 :option :none))
+		 :iters range))
 	   ;; Unbinds
 	   (remhash bind scope))))
 
@@ -88,12 +96,10 @@
 	       ,@to-uop
 	       ,@by-uop
 	       ,(aten/engine:make-uop-loop
-		 :iters range
-		 :scope :global)
+		 :iters range)
 	       ,@(apply #'append (map 'list #'explore (cddr form)))
 	       ,(aten/engine:make-uop-endloop
-		 :iters range
-		 :option :none))
+		 :iters range))
 	   (remhash bind scope))))
       ;; (- a) -> -a
       ((list '- form)
@@ -119,17 +125,24 @@
 	      (op
 		(aten/engine:make-uop-alu
 		 :x-writes
-		 (prog1
-		     (list alu)
-		   (incf (counter-alu counter)))
+		 (list "")
 		 :x-reads
 		 (loop for arg in args
 		       append (list (aten/engine:uop->buffer (car (last arg)))))
 		 :op-type (intern (symbol-name car) "KEYWORD")
 		 ;; Asserting that all dtypes are the same.
-		 :dtype dtype)))
-	 (setf (gethash alu scope) (cons op dtype))
-	 `(,@(apply #'append args) ,op)))
+		 :dtype dtype))
+	      (op1 (aten/engine::copy-uop-alu op))
+	      (alu-idx 
+		(prog1
+		    (list alu)
+		  (incf (counter-alu counter)))))
+	 (setf (aten/engine::uop-alu-x-writes op1) alu-idx)
+	 (or (read-cache op)
+	     (progn
+	       (cache op (list op1) dtype)
+	       (setf (gethash alu scope) (cons op dtype))
+	       `(,@(apply #'append args) ,op1)))))
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
       ((list (or 'incf 'decf 'mulcf 'divcf) form1)
@@ -145,7 +158,6 @@
 	      (to-buffer (if to-aref-p
 			     `(aref ,@(cdr to))
 			     to)))
-	 
 	 (explore
 	  `(setf
 	    ,to-buffer
@@ -212,29 +224,34 @@
        )
       ;; number
       ((type number)
-       (let* ((dtype (typecase form
-		       (float :float)
-		       (integer :int)
-		       (T
-			(warn "cannot infer the type of: ~a" form)
-			:float)))
-	      (val (aten/engine:make-const-buffer :value form :type dtype))
-	      (val-id (read-counter counter 'val))
-	      (op (aten/engine:make-uop-load
-		   :x1 (prog1
-			   val-id
-			 (incf (counter-val counter)))
-		   :x2 val)))
-	 (setf (gethash val-id scope) (cons op dtype))
-	 (list
-	  op)))
+       (or
+	(read-cache form)
+	(let* ((dtype (typecase form
+			(float :float)
+			(integer :int)
+			(T
+			 (warn "cannot infer the type of: ~a" form)
+			 :float)))
+	       (val (aten/engine:make-const-buffer :value form :type dtype))
+	       (val-id (read-counter counter 'val))
+	       (op (aten/engine:make-uop-load
+		    :x1 (prog1
+			    val-id
+			  (incf (counter-val counter)))
+		    :x2 val)))
+	  (cache form (list op) dtype)
+	  (setf (gethash val-id scope) (cons op dtype))
+	  (list
+	   op))))
       ;; variable
       ((or (type string) (type symbol))
        (let* ((name (car (getscope form)))
 	      (name (or (aten/engine:uop->buffer name) name))
 	      (name (if (symbolp name)
 			(symbol-name name)
-			name))      
+			name))
+	      (cache (read-cache name))
+	      (_ (if cache (return-from graph-funcall cache)))
 	      (val (aten/engine:make-const-buffer :value name :type (cdr (getscope form)) :pointer-p nil))
 	      (val-id (read-counter counter 'val))
 	      (op  (aten/engine:make-uop-load
@@ -242,10 +259,20 @@
 			    val-id
 			  (incf (counter-val counter)))
 		    :x2 val)))
+	 (declare (ignore _))
+	 (cache name (list op) (cdr (getscope form)))
 	 (setf (gethash val-id scope) (cons op (aten/engine::const-buffer-type val)))	 
 	 (list op)))
       (_
        (error "trace-uops: Cannot deal with this form: ~a" form)))))
+
+(defun tpsort (list &aux (seen))
+  (loop for l in list
+	for w = (aten/engine::uop-writes l)
+	if (and w (find w seen :test #'equalp))
+	  do (progn nil)
+	else
+	  collect (progn (push w seen) l)))
 
 (defun trace-uops (inputs body &aux (scope (make-hash-table :test #'equal)) (counter (make-counter)) (declares))
   "Creates a computation graph from lisp-like DSL.
@@ -265,6 +292,7 @@
 	(push (aten/engine:make-uop-declare-var :var sid) declares)
 	(setf (gethash sid scope) (cons sid :int)))))
 
-  `(,@declares
-    ,@(graph-funcall counter scope body)))
+  (tpsort
+   `(,@declares
+     ,@(graph-funcall counter scope body))))
 
