@@ -54,7 +54,6 @@
       (when (not (= (length uops) (length new-uops)))
 	(format t "[Simplifier] These nodes are isolated from the graph and purged in the simplification process. ~a" stashed)))
     
-    ;;`(,@(map 'list #'cdr stashed) ,@(reverse new-uops))
     (reverse new-uops)))
 
 (defmacro define-simplifier (name (uops &optional (uops-all (gensym))) &body body)
@@ -85,7 +84,7 @@ And body:
   `(let ((*simplifiers* (make-hash-table)))
      ,@body))
 
-;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;; ~~~ Hand-Coded Simplifiers ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ;; (A * B) + C -> MulADD(A, B, C)
 (define-simplifier MulAdd (uops uops-full)
@@ -324,8 +323,6 @@ And body:
 				       ,@(loop for x in new-args
 					       if (not (numberp arg)) collect x))))
 			  new-args)))
-       ;; Loadx1 <- Loadx2をALUでやるとうまく行かない？・・・
-       ;; Arange/ALU両方で問題が発生する
 
        (cond
 	 ((and (every #'numberp new-args) (= (length new-args) 1))
@@ -347,8 +344,13 @@ And body:
 	       :op-type :+
 	       :dtype (uop-alu-dtype alu))))
 	    (_
-	     nil
-	     )))
+	     (assert (= (length new-args) 3) () "Simplifier: Assertion failed. (new-args is not expected to be fused?)")
+	     (list
+	      (make-uop-alu
+	       :x-writes (uop-alu-x-writes alu)
+	       :x-reads new-args
+	       :op-type :muladd
+	       :dtype (uop-alu-dtype alu))))))
 	 ((= (length new-args) 1)
 	  (if (find (uop-alu-op-type alu) `(:+ :*))
 	      (loop for x-write in (uop-alu-x-writes alu)

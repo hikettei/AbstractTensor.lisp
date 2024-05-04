@@ -13,12 +13,13 @@
 
 (in-package :caten)
 
-(defun run-compilation (path runtime)
+(defun run-compilation (path runtime debug)
   
   ;; Runtime Configuration
   ;; [TODO] If runtime not found, search from ./runtimes
   (load runtime)
-  
+
+  (setf (aten/engine::runtimeconfig-debug aten/engine::*runtime*) debug)
   (let* ((composite (aten/lang:composite-from-file path))
 	 (uops      (aten/lang:trace-uops
 		     (aten/ir:composite-inputs composite)
@@ -35,8 +36,9 @@
 
 (defun caten/handler (cmd)
   (let* ((path (clingon:getopt cmd :input))
-	 (runtime (clingon:getopt cmd :runtime)))
-    (run-compilation path runtime)))
+	 (runtime (clingon:getopt cmd :runtime))
+	 (debug   (or (clingon:getopt cmd :debug) 0)))
+    (run-compilation path runtime debug)))
 
 (defun caten/options ()
   (list
@@ -51,7 +53,13 @@
     :description "a .lisp file to use as a runtime"
     :short-name #\r
     :long-name "runtime"
-    :key :runtime)))
+    :key :runtime)
+   (clingon:make-option
+    :integer
+    :description "debug level (0~4)"
+    :short-name #\d
+    :long-name "debug"
+    :key :debug)))
 
 (defun caten/command ()
   ;; Usage (WIP)
