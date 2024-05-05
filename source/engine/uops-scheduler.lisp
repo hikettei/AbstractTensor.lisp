@@ -272,7 +272,7 @@ for (int i=0;i<3;i+=2) {
 	   (type function unroller)
 	   (type (member :dynamic :static) scope-type)
 	   (optimize (speed 3)))
-  (assert (eql scope-type :dynamic) () "scoping-type=:static is deprecated")
+  
   (multiple-value-bind (loop-body start end) (slice-loop-entity (uopgraph-uops graph) idx)
     (assert loop-body () "Loop(~a) is not defined." idx)
     (let* ((loop-start (car loop-body))
@@ -288,12 +288,18 @@ for (int i=0;i<3;i+=2) {
       (when (not 1by1?)
 	(with-debug-level (3)
 	  (warn "%uopgraph-unroll is skipped because the `by` of the range ~a is not 1." old-range))
-	(return-from %uopgraph-unroll))      
+	(return-from %uopgraph-unroll))
 
-      (let* ((new-range (make-range
+      (let* ((new-range-to-idx (format nil "_~(~a~)_max" (range-id old-range)))
+	     (new-range-to (make-uop-alu
+			    :x-writes (list new-range-to-idx)
+			    :x-reads  (list (range-to old-range) unroll-by)
+			    :op-type :-
+			    :dtype :int))
+	     (new-range (make-range
 			 :id   (range-id old-range)
 			 :from (range-from old-range)
-			 :to   (range-to   old-range)
+			 :to   new-range-to-idx
 			 :by   unroll-by))
 	     (n-loopsize-idx (format nil "_len_~(~a~)_~a" (range-id old-range) unroll-by))
 	     (n-reminder-idx (format nil "_rem_~(~a~)_~a" (range-id old-range) unroll-by))
@@ -372,6 +378,7 @@ for (int i=0;i<3;i+=2) {
 	     (new-loop-body `(,@unrolled-loop-body ,@loop-reminder))
 	     ;; Replace the existing loop with unrolled loop
 	     (new-body `(,@(subseq (uopgraph-uops graph) 0 start)
+			 ,new-range-to
 			 ,@new-loop-body
 			 ,@(subseq (uopgraph-uops graph) end))))
 	(setf (uopgraph-uops graph) new-body)

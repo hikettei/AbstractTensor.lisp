@@ -22,14 +22,13 @@
 (aten/engine:declare-runtime
  :clang
  :indexing-rule :flatten ;; manually computes the strides
- :scoping-type :dynamic
+ :scoping-type :static
  )
 ;;#include <x86intrin.h>
 ;;#include <arm_neon.h>
 ;;#include <omp.h>
 ;;#include <sleef.h>
 (defparameter *headers* "
-#include <stdio.h>
 ")
 
 (defparameter *indent* 0)

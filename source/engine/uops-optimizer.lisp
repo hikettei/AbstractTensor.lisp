@@ -178,7 +178,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
     (%uopgraph-optimize-accumlation graph)
 
     
-    ;;(%uopgraph-unroll graph "I" 4 (runtimeconfig-scoping-type *runtime*))
+    ;;(%uopgraph-unroll graph "I" 8 (runtimeconfig-scoping-type *runtime*))
     ;; 7. Parallelize
     (case (runtimeconfig-vectorize-strategy *runtime*)
       (:disabled nil) ;; Ignored
