@@ -32,5 +32,7 @@
    #:composite-name
    #:composite-inputs
    #:composite-outputs
-   #:composite-code))
+   #:composite-code
+   #:composite-test-requirements
+   #:composite-test-code))
 

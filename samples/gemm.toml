@@ -1,12 +1,10 @@
+
 [composite]
 documentation = """
-Multiplies two matrices.
+C <- gemm(1.0, A, B, C, 0.0)
 """
+
 name = "Gemm"
-# M N, N K -> M K
-# M = A
-# N = B
-# K = C
 inputs = ["A{float}[M N]<1 0>()", "B{float}[N K]<1 0>()", "C{float}[M K]<1 0>()"]
 outputs = ["C"]
 
@@ -17,3 +15,15 @@ code = """
         (dotimes (k_1 K)
 	    (incf (aref c i_1 j_1) (* (aref a i_1 k_1) (aref b k_1 j_1))))))
 """
+
+[test]
+
+requirements = [""]
+code = """
+(lambda (A B C n m k)
+    (dotimes (i_1 M)
+        (dotimes (j_1 N)
+	    (dotimes (k_1 K)
+	        (incf (aref c i_1 j_1) (* (aref a i_1 k_1) (aref b k_1 j_1)))))))
+"""
+

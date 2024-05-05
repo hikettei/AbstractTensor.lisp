@@ -38,4 +38,24 @@
      :boolean
      )))
 
+(defun ->lisp-type (dtype)
+  (ecase dtype
+    (:bit 'bit)
+    (:uint4 '(unsigned-byte 4))
+    (:int4  '(signed-byte 4))
+    (:uint8 '(unsigned-byte 8))
+    (:int8  '(signed-byte 8))
+    (:uint16 '(unsigned-byte 16))
+    (:int16  '(signed-byte 16))
+    (:uint32 '(unsigned-byte 32))
+    (:int32  '(signed-byte 32))
+    (:uin64 '(unsigned-byte 64))
+    (:int64  '(signed-byte 64))
+    (:int 'integer)
+    (:float 'single-float)
+    (:double 'double-float)
+    (:boolean 'boolean)))
+
+
+
 

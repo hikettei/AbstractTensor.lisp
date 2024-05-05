@@ -216,7 +216,7 @@ Compiled with: ~a"
 		 (if (null (aten/ir:aten-shape (car rest-forms)))
 		     `(let ((,(car rest-binds) ,(car rest-binds)))
 			,(expand (cdr rest-forms) (cdr rest-binds) body))
-		     `(with-pointer-to-vector-data (,(car rest-binds) ,(car rest-binds))
+		     `(with-pointer-to-vector-data (,(car rest-binds) (array-displacement ,(car rest-binds)))
 			,(expand (cdr rest-forms) (cdr rest-binds) body)))
 		 `(progn ,@body))))
     `(lambda (,@inames)

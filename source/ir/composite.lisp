@@ -7,5 +7,8 @@
   (name "" :type string)
   (inputs nil :type list)
   (outputs nil :type list)
-  (code "" :type string))
+  (code "" :type string)
+
+  (test-requirements nil :type list)
+  (test-code         ""  :type string))
 

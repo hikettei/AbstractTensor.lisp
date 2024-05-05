@@ -16,14 +16,22 @@
 		     (error "~a not found from config: ~a" name config)))))
       ;;(print config)
       (let ((composite (config-of config "composite"))
-	    (impl      (config-of config "implementation")))
+	    (impl      (config-of config "implementation"))
+	    (test      (config-of config "test" :none)))
 	(aten/ir:make-composite
 	 :documentation (config-of composite "documentation" "")
 	 :path ""
 	 :name (config-of composite "name" (gensym "CID"))
 	 :inputs (map 'list #'aten/ir:parse-aten (config-of composite "inputs"))
 	 :outputs (map 'list #'(lambda (x) (intern (string-upcase x) "KEYWORD")) (config-of composite "outputs"))
-	 :code (config-of impl "code"))))))
+	 :code (config-of impl "code")
+	 :test-requirements (if (eql test :none)
+				nil
+				(let ((out (config-of test "requirements" :none)))
+				  (if (eql out :none) nil out)))
+	 :test-code (if (eql test :none)
+			""
+			(config-of test "code" "")))))))
 
 (defun composite-from-file (filepath)
   (with-text (toml filepath)

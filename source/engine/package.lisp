@@ -15,7 +15,9 @@
    #:cc-caller
    #:cc-defun-header
    #:cc-output-positions
-   #:call)
+   #:call
+   #:test-composite
+   #:*test-composite-mode*)
   
   ;; Types
   (:export
