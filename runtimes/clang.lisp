@@ -22,14 +22,14 @@
 (aten/engine:declare-runtime
  :clang
  :indexing-rule :flatten ;; manually computes the strides
- :scoping-type :static
+ :scoping-type :dynamic
  )
 ;;#include <x86intrin.h>
 ;;#include <arm_neon.h>
 ;;#include <omp.h>
 ;;#include <sleef.h>
 (defparameter *headers* "
-
+#include <stdio.h>
 ")
 
 (defparameter *indent* 0)
@@ -103,7 +103,7 @@
      :endloop
      ((iter)
       (decf *indent* 4)
-      (format stream "~a} // EndLoop [~a] ~%" (indent) (aten/engine:range-id iter)))
+      (format stream "~a};// EndLoop [~a] ~%" (indent) (aten/engine:range-id iter)))
      :load
      ((x1 x2 reduction)
       (multiple-value-bind (type pointer-p)

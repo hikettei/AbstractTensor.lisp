@@ -112,6 +112,9 @@ See also: `declare-runtime`
 		:named function-name)))
       (let ((compiled-code (render-graph (runtimeconfig-name *runtime*) new-uop-graph)))
 	(assert (stringp compiled-code) () "realize: compiled code should be a string")
+	(when (>= (runtimeconfig-debug *runtime*) 2)
+	  (format t "[Compiled Code]~%")
+	  (format t "~a~%" compiled-code))
 	(let ((compiled-composite
 		(load-compiled-composite (runtimeconfig-name *runtime*) compiled-code composite header)))
 	  (assert (compiled-composite-p compiled-composite) () "realize: load-compiled-composite should return a compiled-composite object.")

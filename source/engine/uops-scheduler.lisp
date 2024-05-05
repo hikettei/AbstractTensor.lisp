@@ -170,20 +170,109 @@
 		  "Assertion failed")
 	  (values sliced start end))))))
 
-(defun unroll-uop (uop unroll-idx unroll-by)
+;; (defun unroll-simd () ...)
+(defun unroll-uops (uops unroll-idx unroll-by &aux (seen (list unroll-idx)))
+  "
+for (int i=0;i<3;i+=2) {
+    int k = i;            | <- unroll-uops this area as an `uops`
+    ...                   | <- rewriting each ops as unrolled ops
+}
+"
   ;; [TODO] Unroll
   ;; Load -> Unroll
   ;; ALU -> Unroll
   ;; etc
-  uop
-  )
+  ;; for int i = 0
+  ;;   int val = i <- これがある前提でやってる (最後だけSimplifyするようにするべきなのか？・・・)
+  (labels ((->unroll-idx (name nth) (format nil "~a_~a" name nth))
+	   (to-unroll? (uop)
+	     (intersection seen (uop-reads uop) :test #'equal))
+	   (unroll-buffer (buffer nth)
+	     (if (typep buffer 'buffers)
+		 (buffercase
+		  buffer
+		  :string ((value)
+			   (if (find value seen :test #'equal)
+			       (->unroll-idx value nth)
+			       value))
+		  :const  ((value type pointer-p)
+			   (if (find value seen :test #'equal)
+			       (->unroll-idx value nth)
+			       value))
+		  :aref ((name idx)
+			 (make-aref-buffer
+			  :name name
+			  :idx
+			  (map
+			   'list
+			   #'(lambda (x)
+			       (if (find x seen :test #'equal)
+				   (->unroll-idx x nth)
+				   x))
+			   idx))))
+		 buffer)))
+    
+    (alexandria:flatten
+     (list
+      (loop for nth upfrom 0 below unroll-by
+	    collect
+	    (make-uop-alu
+	     :x-writes (list (->unroll-idx unroll-idx nth))
+	     :x-reads  (list unroll-idx nth)
+	     :op-type :+
+	     :dtype   :int))      
+      (loop for op in uops
+	    if (to-unroll? op)
+	      collect
+	      (typecase op
+		(UOp-Load
+		 ;; int val_0 = i;
+		 ;; ->
+		 ;; int val_0_1 = i+0;
+		 ;; int val_0_2 = i+1;
+		 ;;       ...
+		 (push (uop-load-x1 op) seen)
+		 (loop for nth upfrom 0 below unroll-by
+		       collect
+		       (make-uop-load
+			:x1 (unroll-buffer (uop-load-x1 op) nth)
+			:x2 (unroll-buffer (uop-load-x2 op) nth))))
+		(UOp-Store
+		 (loop for nth upfrom 0 below unroll-by
+		       collect
+		       (make-uop-store
+			:x1 (unroll-buffer (uop-store-x1 op) nth)
+			:x2 (unroll-buffer (uop-store-x2 op) nth)
+			:reduction (uop-store-reduction op))))
+		(UOp-ALU
+		 (dolist (w (uop-alu-x-writes op))
+		   (push w seen))
+		 (loop for nth upfrom 0 below unroll-by
+		       collect
+		       (make-uop-alu
+			:x-writes (map 'list #'(lambda (x) (unroll-buffer x nth)) (uop-alu-x-writes op))
+			:x-reads  (map 'list #'(lambda (x) (unroll-buffer x nth)) (uop-alu-x-reads  op))
+			:op-type  (uop-alu-op-type op)
+			:dtype    (uop-alu-dtype op)
+			:reduction (uop-alu-reduction op))))
+		(UOp-Loop
+		 ;; [Impl] Loopのなかをもう一度Sliceして複製する
+		 (error "not ready")
+		 )
+		(T
+		 (error "unroll-uops: add the case for unrolling ~a" op)
+		 op))
+	    else
+	      collect op)))))
 
-(defun %uopgraph-unroll (graph idx unroll-by scope-type)
+(defun %uopgraph-unroll (graph idx unroll-by scope-type &key (unroller #'unroll-uops))
   (declare (type UOpGraph graph)
 	   (type string idx)
 	   (type fixnum unroll-by)
+	   (type function unroller)
 	   (type (member :dynamic :static) scope-type)
 	   (optimize (speed 3)))
+  (assert (eql scope-type :dynamic) () "scoping-type=:static is deprecated")
   (multiple-value-bind (loop-body start end) (slice-loop-entity (uopgraph-uops graph) idx)
     (assert loop-body () "Loop(~a) is not defined." idx)
     (let* ((loop-start (car loop-body))
@@ -277,7 +366,8 @@
 		  (setf (range-from new-range) (range-id new-range))
 		  (list (make-uop-load :x1 (range-id old-range) :x2 (make-const-buffer :value (range-from old-range) :type :int))))
 		(list (make-uop-loop :iters new-range))
-		(alexandria:flatten (map 'list #'(lambda (x) (unroll-uop x (range-id old-range) unroll-by)) (cdr (butlast loop-body))))
+		;;(alexandria:flatten (map 'list #'(lambda (x) (unroll-uop (uopgraph-uops graph) x (range-id old-range) unroll-by)) (cdr (butlast loop-body))))
+		(funcall unroller (cdr (butlast loop-body)) (range-id old-range) unroll-by)
 		(list (make-uop-endloop :iters new-range))))
 	     (new-loop-body `(,@unrolled-loop-body ,@loop-reminder))
 	     ;; Replace the existing loop with unrolled loop
@@ -288,6 +378,6 @@
 
 	;; [FixME]
 	;; With loop_reminder and scope=:static, it brokes the definition of non-circular of DAG.
-	;; That is, some simplifiers may broke ...
-	(%uopgraph-simplify graph)))))
+	;; That is, some assertion of simplifiers may broke?...
+	graph))))
 

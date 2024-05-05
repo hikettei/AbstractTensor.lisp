@@ -40,9 +40,6 @@
 		     (aten/engine:uops-optimize uops))))
     (multiple-value-bind (ccomposite code)
 	(aten/engine:realize graph composite)
-      (aten/engine::with-debug-level (2)
-	(format t "[Compiled Code]~%")
-	(format t "~a~%" code))
       (aten/engine::with-debug-level (4)
 	(print ccomposite)
 	(print graph))
@@ -58,7 +55,7 @@
 	(let ((configs (parse-test-config test)))
 	  (multiple-value-bind (errors time)
 	      (aten/engine:test-composite cc :constants configs)
-	    (format t "[Benchmark]~%    Error=~a~%    Time=~a~%" errors time)))))))
+	    (format t "[Benchmarks]~%    Error=~a~%    Time=~a~%" errors time)))))))
 
 (defun caten/options ()
   (list

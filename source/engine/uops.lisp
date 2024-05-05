@@ -104,9 +104,9 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
     :write nil)
 
   (define-buffer Aref
-    "Refs [idx] from [name]"
-    ((name nil :type aten/ir:AbstractTensor)
-     (idx nil :type list))
+    "Refs [idx] from [name]."
+    ((name    nil :type aten/ir:AbstractTensor)
+     (idx     nil :type list))
     :read (aref-buffer-idx buffer))
   
   (deftype Buffers ()
@@ -245,7 +245,7 @@ Load [x1] [x2]
 ```
 Stores x2 into x1.
 "
-    ((x1 nil :type Buffers)
+    ((x1 nil :type String) ;; x1=string?
      (x2 nil :type Buffers)
      (reduction nil :type (or null string)))
     :read  (uop-load-x2 uop)
@@ -358,12 +358,15 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
     #.`(defmacro buffercase
 	   (keyform
 	    &key
+	      (string `((value) (warn "[buffercase] string fell through. ~a" value)))
 	      ,@(loop for buffer-name being each hash-key of *buffer-features*
 			using (hash-value slots)
 		      collect
 		      `(,buffer-name '((,@slots) (warn "[buffercase]: Buffer ~a fell through." ',buffer-name)))))
 	 "TODO: Docs"
 	 `(cond
+	    ((stringp ,keyform)
+	     (funcall #'(lambda ,@string) ,keyform))
 	    ,,@(loop for buffer-name being each hash-key of *buffer-features*
 		       using (hash-value slots)
 		     collect
