@@ -197,7 +197,7 @@ for (int i=0;i<3;i+=2) {
 			       value))
 		  :const  ((value type pointer-p)
 			   (if (find value seen :test #'equal)
-			       (->unroll-idx value nth)
+			       (make-const-buffer :value (->unroll-idx value nth) :type type :pointer-p pointer-p)
 			       value))
 		  :aref ((name idx)
 			 (make-aref-buffer
@@ -220,7 +220,7 @@ for (int i=0;i<3;i+=2) {
 	     :x-writes (list (->unroll-idx unroll-idx nth))
 	     :x-reads  (list unroll-idx nth)
 	     :op-type :+
-	     :dtype   :int))      
+	     :dtype   :int))
       (loop for op in uops
 	    if (to-unroll? op)
 	      collect
@@ -256,9 +256,11 @@ for (int i=0;i<3;i+=2) {
 			:dtype    (uop-alu-dtype op)
 			:reduction (uop-alu-reduction op))))
 		(UOp-Loop
-		 ;; [Impl] Loopのなかをもう一度Sliceして複製する
-		 (error "not ready")
-		 )
+		 (let ((loop-subbody (slice-loop-entity uops (range-id (uop-loop-iters op)))))
+		   ;; TODO
+		   ;; ループごと繰り返すように実装したい。(がテストするのがめんどくさい)
+		   (error "not ready!")
+		   ))
 		(T
 		 (error "unroll-uops: add the case for unrolling ~a" op)
 		 op))
@@ -290,7 +292,7 @@ for (int i=0;i<3;i+=2) {
 	  (warn "%uopgraph-unroll is skipped because the `by` of the range ~a is not 1." old-range))
 	(return-from %uopgraph-unroll))
 
-      (let* ((new-range-to-idx (format nil "_~(~a~)_max" (range-id old-range)))
+      (let* ((new-range-to-idx (format nil "_~(~a~)_upper" (range-id old-range)))
 	     (new-range-to (make-uop-alu
 			    :x-writes (list new-range-to-idx)
 			    :x-reads  (list (range-to old-range) unroll-by)

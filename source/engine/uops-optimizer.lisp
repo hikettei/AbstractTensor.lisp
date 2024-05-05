@@ -176,15 +176,32 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 
     ;; 6. Attributing @reduction
     (%uopgraph-optimize-accumlation graph)
-
-    
-    ;;(%uopgraph-unroll graph "I" 8 (runtimeconfig-scoping-type *runtime*))
+    (%uopgraph-simplify graph)
     ;; 7. Parallelize
     (case (runtimeconfig-vectorize-strategy *runtime*)
       (:disabled nil) ;; Ignored
       (:vector
-       
-       )
+       ;; Memo: Row-MajorならInnnerMost/ColumnならOutmostでSIMDにPackする。
+       (let* ((scope-type (runtimeconfig-scoping-type *runtime*))
+	      (loops (loop with depth = 0
+		           for uop in (uopgraph-uops graph)
+			   if (uop-loop-p uop)
+			     collect
+			     (prog1
+				 (cons depth uop)
+			       (incf depth))
+			   if (uop-endloop-p uop)
+			     do (decf depth)))
+	      (deepest (apply #'max (map 'list #'car loops))))
+
+	 (loop for (depth . range) in loops do
+	   (cond
+	     ((= deepest depth)
+	      ;; [TODO] SIMD
+	      ;;(%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type)
+	      )
+	     ((= 0 depth)
+	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type))))))	       
       (:scalar
        (warn "strategy=scalar is not ready!")
        nil))

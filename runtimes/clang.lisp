@@ -23,6 +23,7 @@
  :clang
  :indexing-rule :flatten ;; manually computes the strides
  :scoping-type :static
+ :vectorize-strategy :vector
  )
 ;;#include <x86intrin.h>
 ;;#include <arm_neon.h>
