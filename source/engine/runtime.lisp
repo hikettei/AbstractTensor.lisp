@@ -14,6 +14,7 @@ Set RuntimeConfig to use.")
 					  (indexing-rule :flatten)
 					  (vectorize-strategy :disabled)
 					  (simd-n-register -1)
+					  (scoping-type :static)
 					  
 					  (group-for-reduces 1)
 					  (upcasted 1)
@@ -50,6 +51,10 @@ See also: `declare-runtime`
 - simd-n-register[fixnum]
     - If vectorize-strategy=:vector is selected, specify here the size of simd register.
 
+- scoping-type[keyword]
+    - One of: :dynamic :static
+        - :static   When generating unrolled loop and loop reminder, the compiler assumes that the target language has a static scope and performs optimisation.
+        - :dynamic  the compiler assumes that the target language has a dynamic scope and generates extra codes for computing the number of remaining elements.
 "
   (name name :type keyword)
   (indexing-rule indexing-rule :type (and keyword (member :flatten :ndarray)))
@@ -60,7 +65,7 @@ See also: `declare-runtime`
 
   ;; Configs for Vector Computor
   (simd-n-register simd-n-register :type fixnum)
-
+  (scoping-type scoping-type :type (and keyword (member :static :dynamic)))
   ;; Configs for Scalar Computor
   (group-for-reduces group-for-reduces :type fixnum)
   (upcasted upcasted :type fixnum)

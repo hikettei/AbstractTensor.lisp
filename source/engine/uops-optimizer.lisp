@@ -176,8 +176,9 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 
     ;; 6. Attributing @reduction
     (%uopgraph-optimize-accumlation graph)
-    ;; ( DO NOT USE %oopgraph-simplify in the subsequence pipeline! otherwise @reduction breaks)
 
+    
+    ;;(%uopgraph-unroll graph "I_1" 4 (runtimeconfig-scoping-type *runtime*))
     ;; 7. Parallelize
     (case (runtimeconfig-vectorize-strategy *runtime*)
       (:disabled nil) ;; Ignored

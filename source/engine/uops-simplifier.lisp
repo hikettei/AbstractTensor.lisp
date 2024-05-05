@@ -167,7 +167,14 @@ And body:
 		       ;;(uop-load-p usr)
 		       )
 		     collect usr))
-	   (changed-p nil))
+	   (changed-p nil)
+	   (writes (uops/user->values uops-full trigger)))
+
+      ;; Ignore the case of:
+      ;; int i_1 = 0
+      ;; for(int i_1=i_1; ... ;...)
+      ;; (this is intended)      
+      (when (not (= (length writes) 1))->failed)
       (when (not (const-buffer-p replace-with))->failed)
       
       (macrolet ((replace! (accessor &key (wrap 'progn))

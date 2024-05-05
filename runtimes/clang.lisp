@@ -21,10 +21,12 @@
 (aten/engine:declare-runtime
  :clang
  :indexing-rule :flatten ;; manually computes the strides
+ :scoping-type :static
  )
 
 (defparameter *headers* "
 #include <x86intrin.h>
+#include <arm_neon.h>
 #include <omp.h>
 #include <sleef.h>
 ")
@@ -100,7 +102,7 @@
      :endloop
      ((iter)
       (decf *indent* 4)
-      (format stream "~a} // EndLoop ~%" (indent)))
+      (format stream "~a} // EndLoop [~a] ~%" (indent) (aten/engine:range-id iter)))
      :load
      ((x1 x2 reduction)
       (multiple-value-bind (type pointer-p)
@@ -120,23 +122,28 @@
 		 (->buffer (nth 0 x-reads))
 		 (->buffer (nth 1 x-reads))
 		 (->buffer (nth 2 x-reads))))
-	((find op-type '(:+ :- :* :/ :< :> :<= :>= :=))
+	((find op-type '(:+ :- :* :/ :< :> :<= :>= := :mod :floordiv))
 	 ;; Arithmetic
-	 (format stream "~a~a ~a = (~a);~%"
-		 (indent)
-		 (cName dtype)
-		 (->buffer (car x-writes))
-		 (apply
-		  #'concatenate
-		  'string
-		  (butlast
-		   (loop for arg in x-reads
-			 for arg-buff = (->buffer arg)
-			 append
-			 (list arg-buff (format nil "~a" op-type)))))))
+	 (let ((op-c (case op-type
+		       (:mod "%")
+		       (:floordiv "/") ;; assume out_dtype is properly set to integer.
+		       (T op-type))))
+	   (format stream "~a~a ~a = (~a);~%"
+		   (indent)
+		   (cName dtype)
+		   (->buffer (car x-writes))
+		   (apply
+		    #'concatenate
+		    'string
+		    (butlast
+		     (loop for arg in x-reads
+			   for arg-buff = (->buffer arg)
+			   append
+			   (list arg-buff (format nil "~a" op-c))))))))
 	(T
-	 (error "Not implemented fcall: ~a" op-type)
-	 )))
+	 (case op-type
+	   (T
+	    (error "Not implemented fcall: ~a" op-type))))))
      :store
      ((x1 x2 reduction)
       (format stream "~a~a = ~a; // UOp.Store~%" (indent) (->buffer x1) (->buffer x2))))))
