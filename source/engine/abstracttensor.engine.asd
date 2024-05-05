@@ -15,8 +15,7 @@
    
    (:file "uops")
    
-   
-   (:file "schedule")
+   (:file "composite")
    (:file "runtime")
    (:file "uops-simplifier")
    (:file "uops-optimizer")

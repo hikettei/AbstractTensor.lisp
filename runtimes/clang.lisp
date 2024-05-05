@@ -3,8 +3,9 @@
 ;;
 ;;
 
+(ql:quickload :cffi :silent t)
 (cl:defpackage :clang
-  (:use :cl))
+  (:use :cl :cffi))
 
 (cl:in-package :clang)
 
@@ -23,12 +24,12 @@
  :indexing-rule :flatten ;; manually computes the strides
  :scoping-type :static
  )
-
+;;#include <x86intrin.h>
+;;#include <arm_neon.h>
+;;#include <omp.h>
+;;#include <sleef.h>
 (defparameter *headers* "
-#include <x86intrin.h>
-#include <arm_neon.h>
-#include <omp.h>
-#include <sleef.h>
+
 ")
 
 (defparameter *indent* 0)
@@ -178,3 +179,71 @@
 		    (loop for s in subscripts
 			  append (list s ", "))))))))
 
+(defun load-foreign-function (source &key (compiler "gcc") (lang "c") (compiler-flags))
+  (declare (type string source compiler))
+  (uiop:with-temporary-file (:pathname sharedlib :type "so" :keep t)
+    nil
+    :close-stream
+    (let* ((cmd
+	     ;; gcc -shared -o sharedlib
+	     (append
+	      (list
+	       compiler "-shared"
+	       "-x" lang)
+	      compiler-flags
+	      (list "-o" (uiop:native-namestring sharedlib) "-")))
+	   (process-info (uiop:launch-program
+			  cmd
+			  :input :stream
+			  :error-output :stream))
+	   (input (uiop:process-info-input process-info))
+	   (error-output (uiop:process-info-error-output process-info)))
+      (unwind-protect (princ source input)
+	(close input))
+      (unless (zerop (uiop:wait-process process-info))
+	(error "AbstractTensor.lisp[clang]: Failed to compile a shared library:~%~a~%
+
+Compiled with: ~a"
+	       (alexandria:read-stream-content-into-string error-output)
+	       (with-output-to-string (out)
+		 (dolist (c cmd) (princ c out) (princ " " out))))))
+    (cffi:load-foreign-library sharedlib)))
+
+
+(defun make-cffi-call-form (name inputs &aux (inames (map 'list #'(lambda (x) (intern (symbol-name (aten/ir:aten-id x)))) inputs)))
+  (labels ((expand (rest-forms rest-binds body)
+	     (if rest-forms
+		 (if (null (aten/ir:aten-shape (car rest-forms)))
+		     `(let ((,(car rest-binds) ,(car rest-binds)))
+			,(expand (cdr rest-forms) (cdr rest-binds) body))
+		     `(with-pointer-to-vector-data (,(car rest-binds) ,(car rest-binds))
+			,(expand (cdr rest-forms) (cdr rest-binds) body)))
+		 `(progn ,@body))))
+    `(lambda (,@inames)
+       ,(expand inputs inames
+		`((cffi:foreign-funcall
+		   ,name
+		   ,@(loop for bind in inames
+			   for tensor in inputs
+			   for scalar-p = (null (aten/ir:aten-shape tensor))
+			   for type     = (aten/ir:aten-type-class tensor)
+			   if scalar-p
+			     append
+			   `(,type ,bind)
+			   else
+			     append
+			   `(:pointer ,bind))
+		   :void))))))
+
+(defmethod aten/engine:load-compiled-composite ((backend (eql :clang))
+						compiled-code
+						composite
+						header-object)
+  (declare (type string compiled-code)
+	   (type aten/engine::UOp-Defun header-object))
+
+  (with-slots ((inputs aten/engine::inputs) (outputs aten/engine::outputs) (named aten/engine::named)) header-object
+    (load-foreign-function compiled-code :compiler "gcc")
+    ;; inputs = a list of abstracttensor
+    
+    (aten/engine:make-compiled-composite (compile nil (make-cffi-call-form named inputs)) composite header-object)))

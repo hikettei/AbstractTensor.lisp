@@ -5,6 +5,18 @@
   (:use :cl)
   (:nicknames aten/engine)
 
+  ;; Composite
+  (:export
+   #:Compiled-Composite
+   #:make-compiled-composite
+   #:load-compiled-composite
+   #:cc-runtime
+   #:cc-base-composite
+   #:cc-caller
+   #:cc-defun-header
+   #:cc-output-positions
+   #:call)
+  
   ;; Types
   (:export
    #:Dtypes

@@ -81,38 +81,41 @@ See also: `declare-runtime`
 (defgeneric render-buffer (backend buffer)
   (:documentation "[TODO] Renders the buffer"))
 
+(defgeneric load-compiled-composite (backend compiled-code composite header-object)
+  (:documentation "[TODO] Loads the compiled composite"))
+
 (defun realize (uop-graph composite &key (function-name (symbol-name (gensym "KID"))))
-  "[TODO] Doc finsih the complitaion."
+  "[TODO] Doc finish the complitaion."
   (declare (type UOpGraph uop-graph))
   
   (flet ((->make-const (scalar)
 	   (aten/ir::make-aten scalar :int nil nil nil)))
-    (let ((new-uop-graph (copy-UOpGraph uop-graph))
-	  ;; Gathering dynamic shapes
-	  (dynamic-shapes
-	    (remove-duplicates
-	     (loop for i in (aten/ir:composite-inputs composite)
-		   append
-		   (loop for s in (aten/ir:aten-shape i)
-			 if (not (numberp s))
-			   collect s)))))
-      ;;[WIP] *dynamic-params*と*config*を読んで
-      ;; Groupingできるか？とかで分岐を色々する
-      ;; 条件ごとに関数を生成する
+    (let* ((new-uop-graph (copy-UOpGraph uop-graph))
+	   ;; Gathering dynamic shapes
+	   (dynamic-shapes
+	     (remove-duplicates
+	      (loop for i in (aten/ir:composite-inputs composite)
+		    append
+		    (loop for s in (aten/ir:aten-shape i)
+			  if (not (numberp s))
+			    collect s))))
+	   (header (aten/engine:make-uop-defun
+		    :inputs
+		    `(,@(aten/ir:composite-inputs composite)
+		      ,@(map 'list #'->make-const dynamic-shapes))
+		    :outputs (aten/ir:composite-outputs composite)
+		    :named function-name)))
       (setf (UOpGraph-uops new-uop-graph)
-	    `(,(aten/engine:make-uop-defun
-		:inputs
-		`(,@(aten/ir:composite-inputs composite)
-		  ,@(map 'list #'->make-const dynamic-shapes))
-		:outputs (aten/ir:composite-outputs composite)
-		:named function-name)
+	    `(,header
 	      ,@(UOpGraph-uops new-uop-graph)
 	      ,(aten/engine:make-uop-enddefun
 		:named function-name)))
-      (render-graph
-       (runtimeconfig-name *runtime*)
-       new-uop-graph))))
-
+      (let ((compiled-code (render-graph (runtimeconfig-name *runtime*) new-uop-graph)))
+	(assert (stringp compiled-code) () "realize: compiled code should be a string")
+	(let ((compiled-composite
+		(load-compiled-composite (runtimeconfig-name *runtime*) compiled-code composite header)))
+	  (assert (compiled-composite-p compiled-composite) () "realize: load-compiled-composite should return a compiled-composite object.")
+	  (values compiled-composite compiled-code))))))
 
 ;; Utils
 (defun infer-buffer-type (buffer)

@@ -29,11 +29,13 @@
 	 (graph     (or
 		     (aten/engine::with-debug-level (1)
 		       (time (aten/engine:uops-optimize uops)))
-		     (aten/engine:uops-optimize uops)))
-	 (code      (aten/engine:realize graph composite)))
-    (print code)
-    (aten/engine::with-debug-level (4)
-      (print graph))))
+		     (aten/engine:uops-optimize uops))))
+    (multiple-value-bind (ccomposite code)
+	(aten/engine:realize graph composite)
+      (print code)
+      (print ccomposite)
+      (aten/engine::with-debug-level (4)
+	(print graph)))))
 
 (defun caten/handler (cmd)
   (let* ((path (clingon:getopt cmd :input))
