@@ -81,6 +81,9 @@
 (defun random-initializer (&rest args)
   (apply (make-initializer #'(lambda (x) (declare (ignore x)) (- 1.0 (random 2.0)))) args))
 
+(defun zero-initializer (&rest args)
+  (apply (make-initializer #'(lambda (x) (declare (ignore x)) 0.0)) args))
+
 (defun MSE (x y)
   (declare (type array x y))
   (let ((x1 (array-displacement x))
@@ -97,8 +100,8 @@
 (defun test-composite (compiled-composite
 		       &key
 			 (constants)
-			 (initializer #'random-initializer)
-			 (initializer-test initializer)
+			 (initializer #'random-initializer) ;; buffer for input
+			 (allocator   #'zero-initializer)   ;; buffer for output
 			 (error-function #'MSE)
 			 (use-outputs nil))
   "[TODO] Docs
@@ -123,19 +126,30 @@ return -> (values accuracy time_compiled_composite time_test_code)"
 	     (setf (gethash (string-upcase id) variables) value))
 
     (let ((inputs (uop-defun-inputs (cc-defun-header compiled-composite))))
-      (flet ((allocate-args (f &aux (input-args))
+      (flet ((allocate-args (f &optional (common-inputs))
 	       (loop for arg in inputs
-		     do (dolist (x (aten/ir:aten-shape arg))
-			  (or
-			   (find (symbol-name x) (alexandria:hash-table-keys variables) :test #'equal)
-			   (error "test-composite: ~a is not provided." x)))
-			(if (aten/ir:aten-shape arg)
-			    (let ((shapes (map 'list #'(lambda (x) (gethash (symbol-name x) variables)) (aten/ir:aten-shape arg))))
-			      (push (funcall f  arg shapes) input-args))
-			    (let ((value (gethash (symbol-name (aten/ir:aten-id arg)) variables)))
-			      (assert value () "test-composite: A scalar tensor ~a is not provided." arg)
-			      (push value input-args))))
-	       (reverse input-args)))	
+		     for nth upfrom 0
+		     for output-p = (find nth (cc-output-positions compiled-composite) :test #'=)
+		     collect
+		     (or
+		      (when common-inputs
+			(if output-p
+			    (if (numberp (nth nth common-inputs))
+				(nth nth common-inputs)
+				(let ((shapes (map 'list #'(lambda (x) (gethash (symbol-name x) variables)) (aten/ir:aten-shape arg))))
+				  (funcall allocator arg shapes)))
+			    ;; Input
+			    (nth nth common-inputs)))
+		       (dolist (x (aten/ir:aten-shape arg))
+			 (or
+			  (find (symbol-name x) (alexandria:hash-table-keys variables) :test #'equal)
+			  (error "test-composite: ~a is not provided." x)))
+		       (if (aten/ir:aten-shape arg)
+			   (let ((shapes (map 'list #'(lambda (x) (gethash (symbol-name x) variables)) (aten/ir:aten-shape arg))))
+			     (funcall f arg shapes))
+			   (let ((value (gethash (symbol-name (aten/ir:aten-id arg)) variables)))
+			     (assert value () "test-composite: A scalar tensor ~a is not provided." arg)
+			     value))))))
 
 	;; Computing on the compiled composite
 	(macrolet ((bench (form)
@@ -143,8 +157,9 @@ return -> (values accuracy time_compiled_composite time_test_code)"
 			(multiple-value-list ,form)
 			(let ((t2 (get-internal-real-time)))
 			  (float (/ (- t2 t1) internal-time-units-per-second))))))
-	  (let* ((args-tgt (allocate-args initializer))
-		 (args-org (allocate-args initializer-test))
+	  (let* ((common-inputs (allocate-args initializer))
+		 (args-tgt (allocate-args initializer common-inputs))
+		 (args-org (allocate-args initializer common-inputs))
 		 (tester (compile nil (read-from-string (aten/ir:composite-test-code (cc-base-composite compiled-composite)))))
 		 (target-case-time   (bench (apply #'call compiled-composite args-tgt)))
 		 (original-case-time (bench (apply tester args-org))))

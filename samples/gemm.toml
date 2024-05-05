@@ -5,25 +5,23 @@ C <- gemm(1.0, A, B, C, 0.0)
 """
 
 name = "Gemm"
-inputs = ["A{float}[M N]<1 0>()", "B{float}[N K]<1 0>()", "C{float}[M K]<1 0>()"]
+inputs = ["A{float}[M K]<0 1>()", "B{float}[K N]<0 1>()", "C{float}[M N]<0 1>()"]
 outputs = ["C"]
 
 [implementation]
 code = """
-(dotimes (i_1 M)
-    (dotimes (j_1 N)
-        (dotimes (k_1 K)
-	    (incf (aref c i_1 j_1) (* (aref a i_1 k_1) (aref b k_1 j_1))))))
+(dotimes (i m)
+  (dotimes (j n)
+    (dotimes (p k)
+      (incf (aref C i j) (* (aref A i p) (aref B p j))))))
 """
 
 [test]
-
 requirements = [""]
 code = """
-(lambda (A B C n m k)
-    (dotimes (i_1 M)
-        (dotimes (j_1 N)
-	    (dotimes (k_1 K)
-	        (incf (aref c i_1 j_1) (* (aref a i_1 k_1) (aref b k_1 j_1)))))))
+(lambda (A B C k m n)
+  (dotimes (i m)
+    (dotimes (j n)
+      (dotimes (p k)
+        (incf (aref C i j) (* (aref A i p) (aref B p j)))))))
 """
-

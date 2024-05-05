@@ -20,19 +20,44 @@
 	       value)))
     (make-range :id (->gid id) :from (->gid from) :to (->gid to) :by (->gid by))))
 
-(defun lazy-stride-statement (subscripts strides shape)
-  (let ((stacks `(1)))
-    `(+
-      ,@(loop for s   in strides
-	      for sub in subscripts
-	      for size = (nth s shape)
-	      collect
-	      (prog1
-		  `(* ,sub ,@stacks)
-		(push (if (numberp size)
-			  size
-			  (intern (symbol-name size)))
-		      stacks))))))
+(defun compute-strides (shape permute)
+  "Compute the strides for a given shape and a permutation of dimensions."
+  (let* ((n (length shape))
+         (strides (make-list n)))
+    ;; Initialize the stride of the last dimension in permuted order to 1
+    (setf (nth (first (reverse permute)) strides) 1)
+    ;; Calculate strides for other dimensions in reverse permuted order
+    (do ((i (- n 2) (- i 1))) ((< i 0) nil)
+      (setf (nth (nth i permute) strides)
+            (* (nth (nth (1+ i) permute) strides)
+               (nth (nth (1+ i) permute) shape))))
+    ;; Reorder the strides to match the original dimension indices
+    (mapcar (lambda (i) (nth i strides)) (loop for i from 0 below n collect i))))
+
+
+(defun lazy-stride-statement (subscripts permute shape)
+  "Compute the strides for a given shape and a permutation of dimensions."
+  (let* ((n (length shape))
+         (strides (make-list n)))
+    ;; Initialize the stride of the last dimension in permuted order to 1
+    (setf (nth (first (reverse permute)) strides) (list 1))
+    ;; Calculate strides for other dimensions in reverse permuted order
+    (do ((i (- n 2) (- i 1))) ((< i 0) nil)
+      (setf (nth (nth i permute) strides)
+            `(,@(nth (nth (1+ i) permute) strides)
+              ,(nth (nth (1+ i) permute) shape))))
+    ;; Reorder the strides to match the original dimension indices
+    (let ((strides (mapcar (lambda (i) (nth i strides)) (loop for i from 0 below n collect i))))
+      ;; Compute the index
+      `(+
+	,@(loop for ref in subscripts
+		for stride in strides
+		if (equal stride `(1))
+		  collect ref
+		else
+		  collect `(* ,ref ,@stride))))))
+
+(print (lazy-stride-statement `(I J K) `(2 1 0) `(A B C)))
 
 ;; TODO: Replace it with Elegant BNF Parser
 ;; Feature Enhancement
