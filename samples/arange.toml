@@ -11,3 +11,12 @@ code = """
 (dotimes (nth i)
     (setf (aref out nth) (+ (* a nth) b)))
 """
+
+[test]
+
+requirements = [""]
+code = """
+(lambda (out a b i)
+    (dotimes (nth i)
+        (setf (aref out nth) (+ (* a nth) b))))
+"""

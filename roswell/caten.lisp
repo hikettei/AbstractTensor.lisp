@@ -13,6 +13,13 @@
 
 (in-package :caten)
 
+(defun parse-test-config (config)
+  (let ((args (uiop:split-string config :separator ",")))
+    (loop for arg in args
+	  for parsed = (uiop:split-string arg :separator "=")
+	  collect (cons (symbol-name (read-from-string (car parsed))) (read-from-string (second parsed))))))
+#+(or)(print (parse-test-config "M=1, K=2"))
+
 (defun run-compilation (path runtime debug)
   
   ;; Runtime Configuration
@@ -28,6 +35,7 @@
 	 
 	 (graph     (or
 		     (aten/engine::with-debug-level (1)
+		       (format t "[Compilation Time]~%")
 		       (time (aten/engine:uops-optimize uops)))
 		     (aten/engine:uops-optimize uops))))
     (multiple-value-bind (ccomposite code)
@@ -41,8 +49,14 @@
 (defun caten/handler (cmd)
   (let* ((path (clingon:getopt cmd :input))
 	 (runtime (clingon:getopt cmd :runtime))
-	 (debug   (or (clingon:getopt cmd :debug) 0)))
-    (run-compilation path runtime debug)))
+	 (debug   (or (clingon:getopt cmd :debug) 0))
+	 (test    (clingon:getopt cmd :test)))
+    (let ((cc (run-compilation path runtime debug)))
+      (when test
+	(let ((configs (parse-test-config test)))
+	  (multiple-value-bind (errors time)
+	      (aten/engine:test-composite cc :constants configs)
+	    (format t "[Benchmark]~%    Error=~a~%    Time=~a~%" errors time)))))))
 
 (defun caten/options ()
   (list
@@ -63,7 +77,13 @@
     :description "debug level (0~4)"
     :short-name #\d
     :long-name "debug"
-    :key :debug)))
+    :key :debug)
+   (clingon:make-option
+    :string
+    :description "tests the compiled composite. (--test \"M=1, K=2, N=3\")"
+    :short-name #\t
+    :long-name "test"
+    :key :test)))
 
 (defun caten/command ()
   ;; Usage (WIP)

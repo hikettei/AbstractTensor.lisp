@@ -5,6 +5,12 @@
 
 - Python/Coalton/Common Lisp/その他言語でAPIを呼び出せる
 
+# Usage (WIP)
+
+```
+./roswell/caten.ros -i ./samples/gemm.toml --runtime ./runtimes/clang.lisp --debug 1 --test "M=100, N=100, K=100"
+```
+
 # Ideas
 
 - [ ] Coalton-Based Implementation
