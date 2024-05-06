@@ -224,6 +224,7 @@ And body:
 		 ->failed))
 	   (load2s (uops/value->users uops-full (uop->buffer load1)))
 	   (changed-p nil)
+	   (_ (when (not (= (length (uops/user->values uops-full (uop-load-x1 load1))) 1))->failed))
 	   (load2s-new
 	     (loop for l in load2s
 		   if (uop-load-p l)
@@ -236,6 +237,7 @@ And body:
 				:x2 replace-with))
 		   else
 		     collect l)))
+      (declare (ignore _))
       (loop for x in load2s
 	    for y in load2s-new
 	    do (setf uops (replace-uop uops x y)))

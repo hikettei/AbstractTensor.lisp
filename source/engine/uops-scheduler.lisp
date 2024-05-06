@@ -295,7 +295,7 @@ for (int i=0;i<3;i+=2) {
       (let* ((new-range-to-idx (format nil "_~(~a~)_upper" (range-id old-range)))
 	     (new-range-to (make-uop-alu
 			    :x-writes (list new-range-to-idx)
-			    :x-reads  (list (range-to old-range) unroll-by)
+			    :x-reads  (list (range-to old-range) (1- unroll-by))
 			    :op-type :-
 			    :dtype :int))
 	     (new-range (make-range

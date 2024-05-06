@@ -30,6 +30,7 @@
 ;;#include <omp.h>
 ;;#include <sleef.h>
 (defparameter *headers* "
+#include <stdio.h>
 ")
 
 (defparameter *indent* 0)
@@ -97,8 +98,12 @@
 	    (from (aten/engine:range-from iter))
 	    (to   (aten/engine:range-to   iter))
 	    (by   (aten/engine:range-by   iter)))
-	(format stream "~afor (int ~a=~a; ~a<~a; ~a+=~a) {~%"
-		(indent) (->buffer id) (->buffer from) (->buffer id) (->buffer to) (->buffer id) (->buffer by))
+	(format stream "~afor (~a; ~a<~a; ~a+=~a) {~%"
+		(indent)
+		(if (equal id from) ;; ignore int nth=nth
+		    (format nil "")
+		    (format nil "int ~a=~a" (->buffer id) (->buffer from)))
+		(->buffer id) (->buffer to) (->buffer id) (->buffer by))
 	(incf *indent* 4)))
      :endloop
      ((iter)
