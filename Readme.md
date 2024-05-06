@@ -8,7 +8,7 @@
 # Usage (WIP)
 
 ```
-./roswell/caten.ros -i ./samples/gemm.toml --runtime ./runtimes/clang.lisp --debug 1 --test "M=100, N=100, K=100"
+./roswell/caten.ros -i ./samples/gemm.toml --runtime ./runtimes/clang.lisp --debug 1 --test "M=100, N=100, K=100" --config OMP=1,MARCH\"native\"
 ```
 
 # Ideas
@@ -72,6 +72,7 @@
 
 - [ ] POV: FlashAttention2が生成できる？ https://gist.github.com/xiabingquan/a4a9a743f97aadd531ed6218be20afd2
 - [ ] POV: ~の記号があるとき -> ndarrayに対して処理できるようにしたい。
+- [ ] Implement a pipeline for making a benchmark, for multiple runtimes, multiple composites.
 - [ ] POV: Viewed Sin関数みたいなのを最適化？・・・一つのCompositeでは，Inputs, Outputsが全てBaseだと仮定する。
 - [ ] 作成したRuntimeに対してのUnittestみたいなのを自動でできるようにする。(./aten-cli test-runtime --runtime xxx.lisp) tekina. (./Reports.mdみたいなの生成して対応してるOpSetの一覧の表を作る)
 - [ ] ElementWiseな関数をFlattenする処理 ->
