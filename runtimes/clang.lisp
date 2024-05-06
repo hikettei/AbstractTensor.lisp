@@ -9,29 +9,79 @@
 
 (cl:in-package :clang)
 
-;;
-;; - 1. SLEEFが使えるかでSIMDifyの分岐をしたい。
-;;
-
-;;  DType, op-typeについては規格を作る (OK)
-;;  Type Generic
-;;  Stride computation
-;;  Graph simplification
-
-;; TODO: Export with-clang-runtime
+;; Declares compilation strategy
 (aten/engine:declare-runtime
  :clang
- :indexing-rule :flatten ;; manually computes the strides
- :scoping-type :static
+ :indexing-rule      :flatten
+ :scoping-type       :static
  :vectorize-strategy :vector
  )
+
+;; ~~ Compilation Options ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 ;;#include <x86intrin.h>
-;;#include <arm_neon.h>
-;;#include <omp.h>
-;;#include <sleef.h>
-(defparameter *headers* "
-#include <stdio.h>
-")
+
+(defparameter *headers* "")
+(defparameter *sleef-p* nil)
+(defparameter *omp-p*   nil)
+(defparameter *arm-neon-p* nil)
+(defparameter *simd-len* nil)
+(defparameter *opt* 3)
+(defparameter *cc* "gcc")
+(defparameter *march* "native")
+
+;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+(defmethod aten/engine:initialize-runtime ((backend (eql :clang)) config)
+  (loop for (key . value) in config do
+    (cond
+      ((equal key "SLEEF")
+       (assert (and (numberp value) (or (= value 0) (= value 1)))
+	       ()
+	       "[Clang] the config SLEEF must be 0 or 1")
+       (when (= value 1)
+	 (aten/engine::with-debug-level (2)
+	   (format t "[Clang] SLEEF is enabled.%"))
+	 (setf *headers* (format nil "~a~%#include <sleef.h>" *headers*))))
+      ((equal key "OMP")
+       (assert (and (numberp value) (or (= value 0) (= value 1)))
+	       ()
+	       "[Clang] the config OMP must be 0 or 1")
+       (when (= value 1)
+	 (aten/engine::with-debug-level (2)
+	   (format t "[Clang] OMP is enabled.%"))
+	 (setf *headers* (format nil "~a~%#include <omp.h>" *headers*))))
+      ((equal key "ARM_NEON")
+       (assert (and (numberp value) (or (= value 0) (= value 1)))
+	       ()
+	       "[Clang] the config ARM_NEON must be 0 or 1")
+       (when (= value 1)
+	 (aten/engine::with-debug-level (2)
+	   (format t "[Clang] ARM_NEON is enabled.%"))
+	 (setf *headers* (format nil "~a~%#include <arm_neon.h>" *headers*))))
+      ((equal key "SIMD_LEN")
+       (assert (integerp value) () "[Clang] SIMD_LEN must be given as an integer. ~a" value)
+
+       (aten/engine::with-debug-level (2)
+	 (format t "[Clang] SIMD_LEN=~a~%" value)))
+      ((equal key "OPT")
+       (assert (typep value '(integer 0 3)) () "[Clang] OPT must be given as an integer from 0 to 3. ~a" value)
+
+       (aten/engine::with-debug-level (2)
+	 (format t "[Clang] OPT=~a~%" value))
+
+       (setf *opt* value))
+      ((equal key "CC")
+       (assert (stringp value) () "[Clang] CC must be given as string. ~a" value)
+       (aten/engine::with-debug-level (2)
+	 (format t "[Clang] CC=~a~%" value))
+       (setf *cc* value))
+      ((equal key "MARCH")
+       (assert (stringp value) () "[Clang] MARCH must be given as string. ~a" value)
+       (aten/engine::with-debug-level (2)
+	 (format t "[Clang] MARCH=~a~%" value))
+       (setf *march* value))
+      (T
+       (error "[Clang] Unknown key: ~a -> ~a" key value)))))
 
 (defparameter *indent* 0)
 (defun indent () (with-output-to-string (out) (dotimes (i *indent*) (princ " " out))))
@@ -248,7 +298,14 @@ Compiled with: ~a"
 	   (type aten/engine::UOp-Defun header-object))
 
   (with-slots ((inputs aten/engine::inputs) (outputs aten/engine::outputs) (named aten/engine::named)) header-object
-    (load-foreign-function compiled-code :compiler "gcc")
+    (load-foreign-function
+     compiled-code
+     :compiler *cc*
+     :compiler-flags
+     (list
+      "-fPIC"
+      (format nil "-O~a" *opt*)
+      (format nil "-march=~a" *march*))) 
     ;; inputs = a list of abstracttensor
     
     (aten/engine:make-compiled-composite (compile nil (make-cffi-call-form named inputs)) composite header-object)))

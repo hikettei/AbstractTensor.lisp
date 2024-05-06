@@ -20,13 +20,11 @@
 	  collect (cons (symbol-name (read-from-string (car parsed))) (read-from-string (second parsed))))))
 #+(or)(print (parse-test-config "M=1, K=2"))
 
-(defun run-compilation (path runtime debug)
-  
-  ;; Runtime Configuration
-
+(defun run-compilation (path runtime debug config)
   ;; [TODO] If runtime not found, search from ./runtimes
   (load runtime)
-
+  (aten/engine:initialize-runtime (aten/engine::runtimeconfig-name aten/engine::*runtime*) config)
+  
   (setf (aten/engine::runtimeconfig-debug aten/engine::*runtime*) debug)
   (let* ((composite (aten/lang:composite-from-file path))
 	 (uops      (aten/lang:trace-uops
@@ -40,6 +38,7 @@
 		     (aten/engine:uops-optimize uops))))
     (multiple-value-bind (ccomposite code)
 	(aten/engine:realize graph composite)
+      (declare (ignore code))
       (aten/engine::with-debug-level (4)
 	(print ccomposite)
 	(print graph))
@@ -49,8 +48,9 @@
   (let* ((path (clingon:getopt cmd :input))
 	 (runtime (clingon:getopt cmd :runtime))
 	 (debug   (or (clingon:getopt cmd :debug) 0))
-	 (test    (clingon:getopt cmd :test)))
-    (let ((cc (run-compilation path runtime debug)))
+	 (test    (clingon:getopt cmd :test))
+	 (config  (clingon:getopt cmd :config)))
+    (let ((cc (run-compilation path runtime debug (parse-test-config config))))
       (when test
 	(let ((configs (parse-test-config test)))
 	  (multiple-value-bind (errors time)
@@ -61,28 +61,34 @@
   (list
    (clingon:make-option
     :string
-    :description "toml file to compile"
+    :description "Target toml file to compile"
     :short-name #\i
     :long-name "input"
     :key :input)
    (clingon:make-option
     :string
-    :description "a .lisp file to use as a runtime"
+    :description "Set .lisp file to use as a runtime."
     :short-name #\r
     :long-name "runtime"
     :key :runtime)
    (clingon:make-option
     :integer
-    :description "debug level (0~4)"
+    :description "Debug Level (0~4)"
     :short-name #\d
     :long-name "debug"
     :key :debug)
    (clingon:make-option
     :string
-    :description "tests the compiled composite. (--test \"M=1, K=2, N=3\")"
+    :description "Set scalar constants to test the compiled code. (e.g.: --test \"M=1, K=2, N=3\")"
     :short-name #\t
     :long-name "test"
-    :key :test)))
+    :key :test)
+   (clingon:make-option
+    :string
+    :description "additional arguments passed to each runtime. (e.g.: --config OpenMP=1,Arm=0)"
+    :short-name #\c
+    :long-name "config"
+    :key :config)))
 
 (defun caten/command ()
   ;; Usage (WIP)

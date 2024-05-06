@@ -26,6 +26,7 @@
    )
   ;; UI
   (:export
+   #:initialize-runtime
    #:declare-runtime
    #:realize
    )

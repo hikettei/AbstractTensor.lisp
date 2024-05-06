@@ -176,12 +176,12 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 
     ;; 6. Attributing @reduction
     (%uopgraph-optimize-accumlation graph)
-    (%uopgraph-simplify graph)
+    
     ;; 7. Parallelize
     (case (runtimeconfig-vectorize-strategy *runtime*)
       (:disabled nil) ;; Ignored
       (:vector
-       ;; Memo: Row-MajorならInnnerMost/ColumnならOutmostでSIMDにPackする。
+       ;; Memo: Row-MajorならInnnerMost/ColumnならOutmostでSIMDにPackする。?
        (let* ((scope-type (runtimeconfig-scoping-type *runtime*))
 	      (loops (loop with depth = 0
 		           for uop in (uopgraph-uops graph)
@@ -194,13 +194,15 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 			     do (decf depth)))
 	      (deepest (apply #'max (map 'list #'car loops))))
 
+	 ;; 1. どうやってUnrollの間隔をScheduleするか？
+	 ;; 2. 
 	 (loop for (depth . range) in loops do
 	   (cond
 	     ((= deepest depth)
 	      ;; [TODO] SIMD
 	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type)
 	      )
-	     ((= 0 depth)
+	     (T;(= 0 depth)
 	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type))))
 	 ))
       (:scalar

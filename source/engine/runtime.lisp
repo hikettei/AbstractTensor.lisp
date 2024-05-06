@@ -82,6 +82,9 @@ See also: `declare-runtime`
 (defgeneric load-compiled-composite (backend compiled-code composite header-object)
   (:documentation "[TODO] Loads the compiled composite"))
 
+(defgeneric initialize-runtime (backend config)
+  (:documentation "This method called once when the runtime is initialized."))
+
 (defun realize (uop-graph composite &key (function-name (symbol-name (gensym "KID"))))
   "[TODO] Doc finish the complitaion."
   (declare (type UOpGraph uop-graph))

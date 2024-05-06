@@ -49,13 +49,28 @@
     (:int16  '(signed-byte 16))
     (:uint32 '(unsigned-byte 32))
     (:int32  '(signed-byte 32))
-    (:uin64 '(unsigned-byte 64))
+    (:uint64 '(unsigned-byte 64))
     (:int64  '(signed-byte 64))
     (:int 'integer)
     (:float 'single-float)
     (:double 'double-float)
     (:boolean 'boolean)))
 
-
-
+(defun dtype-size (dtype)
+  (ecase dtype
+    (:bit 2)
+    (:uint4 4)
+    (:int4 4)
+    (:uint8 8)
+    (:int8 8)
+    (:uint16 16)
+    (:int16 16)
+    (:uint32 32)
+    (:int32 32)
+    (:uint64 64)
+    (:int64 64)
+    (:int 64) ;; assume using 64bit arch
+    (:float 32)
+    (:double 64)
+    (:boolean 2)))
 

@@ -92,7 +92,7 @@
 		   (loop for i in stores-to-rewrite
 			 collect
 			 (prog1
-			     (format nil "acc_~a" count)
+			     (format nil "_acc_~a" count)
 			   (incf count))))
 		 (acc-loaders
 		   (loop for (alu . store) in stores-to-rewrite
@@ -183,7 +183,7 @@ for (int i=0;i<3;i+=2) {
   ;; etc
   ;; for int i = 0
   ;;   int val = i <- これがある前提でやってる (最後だけSimplifyするようにするべきなのか？・・・)
-  (labels ((->unroll-idx (name nth) (format nil "~a_~a" name nth))
+  (labels ((->unroll-idx (name nth) (format nil "_~a_~a" name nth))
 	   (to-unroll? (uop)
 	     (intersection seen (uop-reads uop) :test #'equal))
 	   (unroll-buffer? (name)

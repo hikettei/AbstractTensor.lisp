@@ -11,7 +11,7 @@
   (declare (type Counter counter)
 	   (type symbol name))
   
-  (format nil "~(~a~)_~a" name (slot-value counter name)))
+  (format nil "_~(~a~)_~a" name (slot-value counter name)))
 
 (defun spawn-range (id from to by)
   (flet ((->gid (value)

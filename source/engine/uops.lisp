@@ -4,9 +4,6 @@
 ;;
 ;; Codes are heavily inspired from tinygrad. https://github.com/tinygrad/tinygrad/blob/master/tinygrad/codegen/uops.py
 ;; ** Use C-x C-k to debug this file on REPL! **
-;; 結局解決できてないこと
-;; - 1. ShapeがDynamicのままで最適化できるのか？
-;; - 2. Broadcast Notation ~をどう実装するか？
 
 (in-package :abstracttensor/engine)
 
