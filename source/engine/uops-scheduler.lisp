@@ -153,8 +153,7 @@
 
 (defun slice-loop-entity (uops idx)
   (declare (type list uops)
-	   (type string idx)
-	   (optimize (speed 3)))
+	   (type string idx))
   (flet ((idx-reader (type-p read)
 	   #'(lambda (x) (and (funcall type-p x) (range-id (funcall read x))))))
     (let ((start (position idx uops :test #'equal :key (idx-reader #'uop-loop-p #'uop-loop-iters)))
@@ -187,16 +186,18 @@ for (int i=0;i<3;i+=2) {
   (labels ((->unroll-idx (name nth) (format nil "~a_~a" name nth))
 	   (to-unroll? (uop)
 	     (intersection seen (uop-reads uop) :test #'equal))
+	   (unroll-buffer? (name)
+	     (find name seen :test #'equal))
 	   (unroll-buffer (buffer nth)
 	     (if (typep buffer 'buffers)
 		 (buffercase
 		  buffer
 		  :string ((value)
-			   (if (find value seen :test #'equal)
+			   (if (unroll-buffer? value)
 			       (->unroll-idx value nth)
 			       value))
 		  :const  ((value type pointer-p)
-			   (if (find value seen :test #'equal)
+			   (if (unroll-buffer? value)
 			       (make-const-buffer :value (->unroll-idx value nth) :type type :pointer-p pointer-p)
 			       value))
 		  :aref ((name idx)
@@ -206,7 +207,7 @@ for (int i=0;i<3;i+=2) {
 			  (map
 			   'list
 			   #'(lambda (x)
-			       (if (find x seen :test #'equal)
+			       (if (unroll-buffer? x)
 				   (->unroll-idx x nth)
 				   x))
 			   idx))))
@@ -233,32 +234,49 @@ for (int i=0;i<3;i+=2) {
 		 ;;       ...
 		 (push (uop-load-x1 op) seen)
 		 (loop for nth upfrom 0 below unroll-by
-		       collect
-		       (make-uop-load
-			:x1 (unroll-buffer (uop-load-x1 op) nth)
-			:x2 (unroll-buffer (uop-load-x2 op) nth))))
+		       if (equal (uop-load-reduction op) unroll-idx)
+			 collect op
+		       else
+			 collect
+			 (make-uop-load
+			  :x1 (unroll-buffer (uop-load-x1 op) nth)
+			  :x2 (unroll-buffer (uop-load-x2 op) nth)
+			  :reduction (uop-load-reduction op))))
 		(UOp-Store
 		 (loop for nth upfrom 0 below unroll-by
-		       collect
-		       (make-uop-store
-			:x1 (unroll-buffer (uop-store-x1 op) nth)
-			:x2 (unroll-buffer (uop-store-x2 op) nth)
-			:reduction (uop-store-reduction op))))
+		       if (equal (uop-store-reduction op) unroll-idx)
+			 collect op
+		       else
+			 collect
+			 (make-uop-store
+			  :x1 (unroll-buffer (uop-store-x1 op) nth)
+			  :x2 (unroll-buffer (uop-store-x2 op) nth)
+			  :reduction (uop-store-reduction op))))
 		(UOp-ALU
 		 (dolist (w (uop-alu-x-writes op))
 		   (push w seen))
-		 (loop for nth upfrom 0 below unroll-by
+		 (loop with writes = (uop-alu-x-writes op)
+		       with reduction-p = (equal unroll-idx (uop-alu-reduction op))
+		       for nth upfrom 0 below unroll-by
 		       collect
 		       (make-uop-alu
-			:x-writes (map 'list #'(lambda (x) (unroll-buffer x nth)) (uop-alu-x-writes op))
-			:x-reads  (map 'list #'(lambda (x) (unroll-buffer x nth)) (uop-alu-x-reads  op))
+			:x-writes (if (equal unroll-idx (uop-alu-reduction op))
+				      (uop-alu-x-writes op)
+				      (map 'list #'(lambda (x) (unroll-buffer x nth)) (uop-alu-x-writes op)))
+			:x-reads  (map
+				   'list
+				   #'(lambda (x)
+				       (if (and reduction-p (find x writes :test #'equal))
+					   x
+					   (unroll-buffer x nth)))
+				   (uop-alu-x-reads  op))
 			:op-type  (uop-alu-op-type op)
 			:dtype    (uop-alu-dtype op)
 			:reduction (uop-alu-reduction op))))
 		(UOp-Loop
-		 (let ((loop-subbody (slice-loop-entity uops (range-id (uop-loop-iters op)))))
+		 (progn;;let ((loop-subbody (slice-loop-entity uops (range-id (uop-loop-iters op)))))
 		   ;; TODO
-		   ;; ループごと繰り返すように実装したい。(がテストするのがめんどくさい)
+		   ;; ループごと繰り返すように実装したい。(がテストするのがめんどくさい) Conv実装する時にでも。。。
 		   (error "not ready!")
 		   ))
 		(T
@@ -274,7 +292,7 @@ for (int i=0;i<3;i+=2) {
 	   (type function unroller)
 	   (type (member :dynamic :static) scope-type)
 	   (optimize (speed 3)))
-  
+
   (multiple-value-bind (loop-body start end) (slice-loop-entity (uopgraph-uops graph) idx)
     (assert loop-body () "Loop(~a) is not defined." idx)
     (let* ((loop-start (car loop-body))
@@ -374,7 +392,6 @@ for (int i=0;i<3;i+=2) {
 		  (setf (range-from new-range) (range-id new-range))
 		  (list (make-uop-load :x1 (range-id old-range) :x2 (make-const-buffer :value (range-from old-range) :type :int))))
 		(list (make-uop-loop :iters new-range))
-		;;(alexandria:flatten (map 'list #'(lambda (x) (unroll-uop (uopgraph-uops graph) x (range-id old-range) unroll-by)) (cdr (butlast loop-body))))
 		(funcall unroller (cdr (butlast loop-body)) (range-id old-range) unroll-by)
 		(list (make-uop-endloop :iters new-range))))
 	     (new-loop-body `(,@unrolled-loop-body ,@loop-reminder))

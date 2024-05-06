@@ -1,8 +1,6 @@
 
 (in-package :abstracttensor/engine)
 
-;; TODO: DebugsしやすくするためにRendererを書いてみる
-
 (defparameter *runtime* nil
   "## [parameter] *runtime*
 Set RuntimeConfig to use.")

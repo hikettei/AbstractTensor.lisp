@@ -201,7 +201,8 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type)
 	      )
 	     ((= 0 depth)
-	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type))))))	       
+	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type))))
+	 ))
       (:scalar
        (warn "strategy=scalar is not ready!")
        nil))
