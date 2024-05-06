@@ -181,9 +181,10 @@ for (int i=0;i<3;i+=2) {
   ;; Load -> Unroll
   ;; ALU -> Unroll
   ;; etc
-  ;; for int i = 0
-  ;;   int val = i <- これがある前提でやってる (最後だけSimplifyするようにするべきなのか？・・・)
-  (labels ((->unroll-idx (name nth) (format nil "_~a_~a" name nth))
+  (labels ((->unroll-idx (name nth)
+	     (if (equal (aref name 0) #\_)
+		 (format nil "~a_~a" name nth)
+		 (format nil "_~a_~a" name nth)))
 	   (to-unroll? (uop)
 	     (intersection seen (uop-reads uop) :test #'equal))
 	   (unroll-buffer? (name)
