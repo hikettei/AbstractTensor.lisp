@@ -49,6 +49,7 @@
        - UOpsでスカラー計算表現した方がいい気がする。
     - [ ] ^とval_xxx使ってforでスカラー計算表現するとか
     - ができるべき。
+- [ ] TODO: Beam Search, Auto Scheduler, Combine with cl-polyhedral to implement an optimizing and multiple-backend einsum!
 - [ ] SIMDGroupでIfしたりIfしなかったりを生成できるようにしたい。
 - [ ] we are too lazy to reimplement the backends. The smallest effort to write an extension!
 - [ ] TinygradのScheduling, Loweringをもってくる。
