@@ -14,7 +14,7 @@
  :clang
  :indexing-rule      :flatten
  :scoping-type       :static
- :vectorize-strategy :vector
+ :vectorize-strategy :disabled
  )
 
 ;; ~~ Compilation Options ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -41,6 +41,7 @@
        (when (= value 1)
 	 (aten/engine::with-debug-level (2)
 	   (format t "[Clang] SLEEF is enabled.%"))
+	 (setf *sleef-p* 1)
 	 (setf *headers* (format nil "~a~%#include <sleef.h>" *headers*))))
       ((equal key "OMP")
        (assert (and (numberp value) (or (= value 0) (= value 1)))
@@ -57,18 +58,18 @@
        (when (= value 1)
 	 (aten/engine::with-debug-level (2)
 	   (format t "[Clang] ARM_NEON is enabled.%"))
+	 (setf *arm-neon-p* 1)
 	 (setf *headers* (format nil "~a~%#include <arm_neon.h>" *headers*))))
       ((equal key "SIMD_LEN")
        (assert (integerp value) () "[Clang] SIMD_LEN must be given as an integer. ~a" value)
-
        (aten/engine::with-debug-level (2)
-	 (format t "[Clang] SIMD_LEN=~a~%" value)))
+	 (format t "[Clang] SIMD_LEN=~a~%" value))
+       (setf *simd-len* value))
       ((equal key "OPT")
        (assert (typep value '(integer 0 3)) () "[Clang] OPT must be given as an integer from 0 to 3. ~a" value)
 
        (aten/engine::with-debug-level (2)
 	 (format t "[Clang] OPT=~a~%" value))
-
        (setf *opt* value))
       ((equal key "CC")
        (assert (stringp value) () "[Clang] CC must be given as string. ~a" value)
@@ -81,7 +82,17 @@
 	 (format t "[Clang] MARCH=~a~%" value))
        (setf *march* value))
       (T
-       (error "[Clang] Unknown key: ~a -> ~a" key value)))))
+       (error "[Clang] Unknown key: ~a -> ~a" key value))))
+  
+  (flet ((set-simd-id (n)
+	   (setf (aten/engine::runtimeconfig-simd-len aten/engine::*runtime*) n)))
+
+    ;; Allows vectorization
+    (when (or *sleef-p* *arm-neon-p*)
+      (when (null *simd-len*)
+	(error "Cannot enable auto vectorization because SIMD_LEN is not declared."))
+      (setf (aten/engine::runtimeconfig-vectorize-strategy aten/engine::*runtime*) :vector)
+      (set-simd-id *simd-len*))))
 
 (defparameter *indent* 0)
 (defun indent () (with-output-to-string (out) (dotimes (i *indent*) (princ " " out))))
@@ -101,7 +112,7 @@
 		       (aten/engine:render-buffer :clang object))))))
     (aten/engine:uopcase
      uop
-     :declare-var ((var) (declare (ignore var)))
+     :declare-var ((var dtype pp) (declare (ignore var dtype pp)))
      :defun
      ((inputs outputs named)
       (incf *indent* 4)
@@ -214,6 +225,8 @@
 (defmethod aten/engine:render-buffer ((backend (eql :clang)) buffer)
   (aten/engine:buffercase
    buffer
+   :string ((value) value)
+   :packed ((packed-objects) (error "not ready"))
    :const ((value type pointer)
 	   (declare (ignore type pointer))
 	   (typecase value

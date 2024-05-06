@@ -181,6 +181,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
     (case (runtimeconfig-vectorize-strategy *runtime*)
       (:disabled nil) ;; Ignored
       (:vector
+       
        ;; Memo: Row-MajorならInnnerMost/ColumnならOutmostでSIMDにPackする。?
        (let* ((scope-type (runtimeconfig-scoping-type *runtime*))
 	      (loops (loop with depth = 0
@@ -192,19 +193,12 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 			       (incf depth))
 			   if (uop-endloop-p uop)
 			     do (decf depth)))
-	      (deepest (apply #'max (map 'list #'car loops))))
-
-	 ;; 1. どうやってUnrollの間隔をScheduleするか？
-	 ;; 2. 
-	 (loop for (depth . range) in loops do
-	   (cond
-	     ((= deepest depth)
-	      ;; [TODO] SIMD
-	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type)
+	      ;;(deepest (apply #'max (map 'list #'car loops)))
 	      )
-	     (T;(= 0 depth)
-	      (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type))))
-	 ))
+	 ;; [TODO] Implement auto scheduler to determine the number of unrolling number.
+	 (loop for (depth . range) in loops do
+	   ;; Attempts to vectorize
+	   (%uopgraph-vectorize graph (range-id (uop-loop-iters range)) scope-type))))
       (:scalar
        (warn "strategy=scalar is not ready!")
        nil))

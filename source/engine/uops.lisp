@@ -105,9 +105,17 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
     ((name    nil :type aten/ir:AbstractTensor)
      (idx     nil :type list))
     :read (aref-buffer-idx buffer))
-  
+
+  (define-buffer Packed
+    "Packed [packed-object1 packed-object2 packed-pbject3 ...]"
+    ((packed-objects nil :type (and list (satisfies buffer-list-p))))
+    :read  (apply #'append (map 'list #'uop-reads  (packed-buffer-packed-objects buffer)))
+    :write (apply #'append (map 'list #'uop-writes (packed-buffer-packed-objects buffer))))    
+ 
   (deftype Buffers ()
-    `(or Const-Buffer Aref-Buffer String))
+    `(or Const-Buffer Aref-Buffer Packed-Buffer String))
+  
+  (defun buffer-list-p (x) (every #'(lambda (x) (typep x 'Buffers)) x))
 
   ;; ~~ Range Interface ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -220,7 +228,9 @@ EndIF
 ## UOp[declare-var]
 Ignore this op when compiling.
 "
-    ((var nil :type graph-id))
+    ((var nil :type graph-id)
+     (type :float :type dtypes)
+     (pointer-p nil :type boolean))
     :write (list (uop-declare-var-var uop)))
 
   (define-uop define-local

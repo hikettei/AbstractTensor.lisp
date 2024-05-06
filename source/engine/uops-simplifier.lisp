@@ -106,6 +106,7 @@ And body:
        (and
 	(= (length add-reads) (length mul-reads) 2)
 	(= (length add-writes) (length mul-writes) 1)
+	(equal (uop-alu-reduction mul) (uop-alu-reduction add))
 	(find (car mul-writes) add-reads :test #'equal)
 	(progn
 	  (with-debug-level (3)
@@ -126,7 +127,8 @@ And body:
 			    do (return-from find-c r))))
 	     (list a b c))
 	   :op-type :muladd
-	   :dtype (uop-alu-dtype add)))
+	   :dtype (uop-alu-dtype add)
+	   :reduction (or (uop-alu-reduction mul) (uop-alu-reduction add))))
 	 (remove-uops
 	  (remove-uops
 	   uops
@@ -234,7 +236,8 @@ And body:
 				 (format t "[Simplifier] LoadFusion ~a -> ~a~%" l replace-with))
 			       (make-uop-load
 				:x1 (uop-load-x1 l)
-				:x2 replace-with))
+				:x2 replace-with
+				:reduction (uop-load-reduction l)))
 		   else
 		     collect l)))
       (declare (ignore _))
@@ -286,7 +289,7 @@ And body:
 			  (alexandria:flatten (replace-uop uops z replacement))))))))))
   
   (def Propagate-Constants
-      "Constant Propagation"
+    "Constant Propagation"
     ((alu ys)
      (when (not (find (uop-alu-op-type alu) `(:+ :- :* :/ := :< :<= :> :>= :muladd)))->failed)
      (let* ((new-args
@@ -298,24 +301,28 @@ And body:
 				  (uop-load-x2 y-old))
 			(declare (ignore x1))
 			;; Here, allows to use Aref/Const Buffer (1)
-			(cond
-			  ((const-buffer-p x2)
-			   ;;  number string aten/ir:AbstractTensor keyword symbol
-			   (typecase (const-buffer-value x2)
-			     (number
-			      (let ((out (const-buffer-value x2)))
-				(if (eql (uop-alu-op-type alu) :*)
-				    (if (= out 1)
-					nil
-					out)
-				    out)))
-			     (aten/ir:AbstractTensor
-			      (assert (null (const-buffer-pointer-p x2)) () "Assertion failed")
-			      (aten/ir:aten-id (const-buffer-value x2)))
-			     (T (const-buffer-value x2))))
-			  ((aref-buffer-p x2)
-			   x2)
-			  (T ->failed)))
+			(buffercase
+			 x2
+			 :const ((value type pointer-p)
+				 (declare (ignore value type pointer-p))
+				 (typecase (const-buffer-value x2)
+				   (number
+				    (let ((out (const-buffer-value x2)))
+				      (if (eql (uop-alu-op-type alu) :*)
+					  (if (= out 1)
+					      nil
+					      out)
+					  out)))
+				   (aten/ir:AbstractTensor
+				    (assert (null (const-buffer-pointer-p x2)) () "Assertion failed")
+				    (aten/ir:aten-id (const-buffer-value x2)))
+				   (T (const-buffer-value x2))))
+			 :aref ((idx name)
+				(declare (ignore idx name))
+				x2)
+			 ;; Packed Load/Store cannot be fused
+			 :packed ((packed-objects) ->failed)
+			 :string ((value) (error "not tested this line yet") value)))
 		    if (uop-alu-p y-old)
 		      collect (car (uop-alu-x-writes y-old))))
 	    (new-args (loop for x in new-args if x collect x))

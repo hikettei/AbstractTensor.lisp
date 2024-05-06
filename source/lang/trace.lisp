@@ -290,7 +290,7 @@
 
   (dolist (input inputs)
     (let ((input-id (symbol-name (aten/ir:aten-id input))))
-      (push (aten/engine:make-uop-declare-var :var input-id) declares)
+      (push (aten/engine:make-uop-declare-var :var input-id :type (aten/ir:aten-type-class input) :pointer-p (not (null (aten/ir:aten-shape input)))) declares)
       (setf (gethash input-id scope)
 	    (cons input (aten/ir:aten-type-class input))))
     
@@ -298,7 +298,7 @@
     (dolist (shape (aten/ir:aten-shape input))
       (when (not (numberp shape))
 	(let ((sid (symbol-name shape)))
-	  (push (aten/engine:make-uop-declare-var :var sid) declares)
+	  (push (aten/engine:make-uop-declare-var :var sid :type :int :pointer-p nil) declares)
 	  (setf (gethash sid scope) (cons sid :int))))))
 
   (tpsort

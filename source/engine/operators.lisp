@@ -21,6 +21,6 @@
      :muladd ;; muladd(A, B, C) = A * B + C
 
      ;; Mathematical Functions (WIP)
-     :exp)))
-
+     :exp     
+     )))
 

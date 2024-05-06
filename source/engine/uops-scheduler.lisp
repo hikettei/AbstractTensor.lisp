@@ -169,7 +169,6 @@
 		  "Assertion failed")
 	  (values sliced start end))))))
 
-;; (defun unroll-simd () ...)
 (defun unroll-uops (uops unroll-idx unroll-by &aux (seen (list unroll-idx)))
   "
 for (int i=0;i<3;i+=2) {
