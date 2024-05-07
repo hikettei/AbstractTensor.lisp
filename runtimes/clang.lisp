@@ -21,6 +21,11 @@
 
 ;; TODO: ArmNeonのSIMDの命令, レジスタサイズベースで自動生成
 
+(defun prefix-p (prefix name)
+  (if (>= (length name) (length prefix))
+      (string= prefix (subseq name 0 (length prefix)))
+      nil))
+
 ;; ~~ Compilation Options ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defparameter *headers* "")
@@ -237,7 +242,7 @@
      ((x1 x2 reduction)
       (multiple-value-bind (type pointer-p)
 	  (aten/engine:infer-buffer-type x2)
-	(let ((simd-p (aten/engine::packed-buffer-p x2)))
+	(let ((simd-p (or (aten/engine::packed-buffer-p x2) (prefix-p "__packed" x1))))
 	  (format stream "~a~(~a~) ~a~a = ~a; // UOp.Load~%"
 		  (indent)
 		  (if simd-p
