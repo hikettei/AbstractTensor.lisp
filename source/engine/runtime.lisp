@@ -144,6 +144,9 @@ Return: (values type-keyword pointer-p)"
 
   (buffercase
    buffer
+   :packed ((objs dtype)
+	    (declare (ignore objs))
+	    dtype)
    :const
    ((value type pointer-p)
     (declare (ignore value))

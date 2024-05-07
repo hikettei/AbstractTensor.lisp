@@ -1,15 +1,21 @@
 
 # AbstractTensor.lisp
 
-# Goal
-
-- Python/Coalton/Common Lisp/その他言語でAPIを呼び出せる
-
 # Usage (WIP)
 
 ```
 ./roswell/caten.ros -i ./samples/gemm.toml --runtime ./runtimes/clang.lisp --debug 1 --test "M=100, N=100, K=100" --config OMP=1,MARCH\"native\"
 ```
+
+# Design (Memo)
+
+- Eazy to read, eazy to develop, keep simplifiers hackable; 冗長なコード -> 拡張可能なSimplifierで最適化の方針
+
+- Detach runtimes from ./source;
+
+- CLIツールベースでやる，Coalton/Java/PythonあたりからBindingかけるようにする。
+
+- etc...
 
 # Ideas
 

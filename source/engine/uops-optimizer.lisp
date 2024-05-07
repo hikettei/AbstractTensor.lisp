@@ -193,17 +193,21 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 			       (incf depth))
 			   if (uop-endloop-p uop)
 			     do (decf depth)))
-	      ;;(deepest (apply #'max (map 'list #'car loops)))
+	      (deepest (apply #'max (map 'list #'car loops)))
 	      )
 	 ;; [TODO] Implement auto scheduler to determine the number of unrolling number.
-	 (loop for (depth . range) in loops do
+	;; (loop for (depth . range) in loops do
 	   ;; Attempts to vectorize
-	   (%uopgraph-vectorize graph (range-id (uop-loop-iters range)) scope-type))))
+	 ;;(%uopgraph-vectorize graph (range-id (uop-loop-iters range)) scope-type)
+	 (loop for (depth . range) in loops do
+	   (when (= depth deepest)
+	     (%uopgraph-vectorize graph (range-id (uop-loop-iters range)) scope-type)))))
       (:scalar
        (warn "strategy=scalar is not ready!")
        nil))
 
-    (%uopgraph-simplify graph)
+    ;;(%uopgraph-simplify graph)
     ;; 8. It's all! returns the optimized UOpGraph structure.
+    (print graph)
     graph))
 

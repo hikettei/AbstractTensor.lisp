@@ -107,8 +107,12 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
     :read (aref-buffer-idx buffer))
 
   (define-buffer Packed
-    "Packed [packed-object1 packed-object2 packed-pbject3 ...]"
-    ((packed-objects nil :type (and list (satisfies buffer-list-p))))
+    "Packed [packed-object1 packed-object2 packed-pbject3 ...]
+Refs can be nil or a list of numbers.
+If specified, render the code like:
+    (const dtype[]){__object_}"
+    ((packed-objects nil :type (and list (satisfies buffer-list-p)))
+     (dtype nil :type Dtypes))
     :read  (apply #'append (map 'list #'uop-reads  (packed-buffer-packed-objects buffer)))
     :write (apply #'append (map 'list #'uop-writes (packed-buffer-packed-objects buffer))))    
  

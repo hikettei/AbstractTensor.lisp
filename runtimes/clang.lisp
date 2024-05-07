@@ -17,9 +17,11 @@
  :vectorize-strategy :disabled
  )
 
-;; ~~ Compilation Options ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+;; Memo https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiesreturnbasetype=[int]&f:@navigationhierarchieselementbitsize=[64]&f:@navigationhierarchiessimdisa=[Neon]&q=vld1q_s64
 
-;;#include <x86intrin.h>
+;; TODO: ArmNeonのSIMDの命令, レジスタサイズベースで自動生成
+
+;; ~~ Compilation Options ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defparameter *headers* "")
 (defparameter *sleef-p* nil)
@@ -94,22 +96,83 @@
       (setf (aten/engine::runtimeconfig-vectorize-strategy aten/engine::*runtime*) :vector)
       (set-simd-id *simd-len*))))
 
+;; ~~ SIMD Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+(defun packed-dtype (dtype)
+  (ecase dtype
+    (:float
+     (cond
+       (*arm-neon-p* "float32x4_t")
+       (T (error "fell through"))))
+    (:double
+     (cond
+       (*arm-neon-p* "float64x2_t")
+       (T (error "fell through"))))
+    (:int
+     (cond
+       (*arm-neon-p* "int64x2_t")
+       (T (error "fell through"))))))
+
+(defun aten-simd-pack-array (dtype)
+  (ecase dtype
+    (:float
+     (cond
+       (*arm-neon-p* "vld1q_f32")
+       (T (error "fell through"))))
+    (:int
+     (cond
+       (*arm-neon-p* "vld1q_s64")
+       (T (error "fell through"))))))
+
+(defun aten-simd-unpack (dtype)
+  (ecase dtype
+    (:float
+     (cond
+       (*arm-neon-p* "vst1q_f32")
+       (T (error "fell through"))))
+    (:int
+     (cond
+       (*arm-neon-p* "vst1q_s64")
+       (T (error ""))))))
+
+(defun aten-simd-op (dtype op)
+  (ecase op
+    (:+
+     (ecase dtype
+       (:double)
+       (:float
+	(cond
+	  (*arm-neon-p* )))))
+    (:*
+     (ecase dtype
+       (:double)
+       (:float
+	(cond
+	  (*arm-neon-p* )))))
+    (:muladd
+     (ecase dtype
+       (:double)
+       (:float)))))
+
+;; ~~ Codegen Engine ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 (defparameter *indent* 0)
 (defun indent () (with-output-to-string (out) (dotimes (i *indent*) (princ " " out))))
 
 (defun cName (object)
   (format nil "~(~a~)" object))
 
+(defun cType (type)
+  (ecase type
+    (:double "double")
+    (:float "float")
+    (:int "int64_t")))
+
 (defun uop->line (stream uop)
   (flet ((->buffer (object)
-	   ;; [TODO] kokono bunki kirenisuru
-	   (if (stringp object)
-	       (cName object)
-	       (if (symbolp object)
-		   (cName object)
-		   (if (numberp object)
-		       (format nil "~a" object)
-		       (aten/engine:render-buffer :clang object))))))
+	   (if (numberp object)
+	       (format nil "~a" object)
+	       (aten/engine:render-buffer :clang object))))
     (aten/engine:uopcase
      uop
      :declare-var ((var dtype pp) (declare (ignore var dtype pp)))
@@ -174,46 +237,58 @@
      ((x1 x2 reduction)
       (multiple-value-bind (type pointer-p)
 	  (aten/engine:infer-buffer-type x2)
-	(format stream "~a~(~a~) ~a~a = ~a; // UOp.Load~%" (indent) type (if pointer-p "*" "") (->buffer x1) (->buffer x2))))
+	(let ((simd-p (aten/engine::packed-buffer-p x2)))
+	  (format stream "~a~(~a~) ~a~a = ~a; // UOp.Load~%"
+		  (indent)
+		  (if simd-p
+		      (packed-dtype type)
+		      type)
+		  (if (and (null simd-p) pointer-p) "*" "")
+		  (->buffer x1) (->buffer x2)))))
      :alu
      ((x-writes x-reads op-type dtype reduction)
-      (cond
-	((eql op-type :muladd)
-	 ;; out = A * B + C;
-	 (format stream "~a~a~a = ~a * ~a + ~a;~%"
-		 (indent)
-		 (if reduction
-		     ""
-		     (format nil "~a " (cName dtype)))
-		 (->buffer (nth 0 x-writes))
-		 (->buffer (nth 0 x-reads))
-		 (->buffer (nth 1 x-reads))
-		 (->buffer (nth 2 x-reads))))
-	((find op-type '(:+ :- :* :/ :< :> :<= :>= := :mod :floordiv))
-	 ;; Arithmetic
-	 (let ((op-c (case op-type
-		       (:mod "%")
-		       (:floordiv "/") ;; assume out_dtype is properly set to integer.
-		       (T op-type))))
-	   (format stream "~a~a ~a = (~a);~%"
+      (let ((simd-p (some #'aten/engine::packed-buffer-p x-reads)))
+	(cond
+	  ((eql op-type :muladd)
+	   ;; out = A * B + C;
+	   (format stream "~a~a~a = ~a * ~a + ~a;~%"
 		   (indent)
-		   (cName dtype)
-		   (->buffer (car x-writes))
-		   (apply
-		    #'concatenate
-		    'string
-		    (butlast
-		     (loop for arg in x-reads
-			   for arg-buff = (->buffer arg)
-			   append
-			   (list arg-buff (format nil "~a" op-c))))))))
-	(T
-	 (case op-type
-	   (T
-	    (error "Not implemented fcall: ~a" op-type))))))
+		   (if reduction
+		       ""
+		       (if simd-p
+			   (format nil "~a " (packed-dtype dtype))	 
+			   (format nil "~a " (cName dtype))))
+		   (->buffer (nth 0 x-writes))
+		   (->buffer (nth 0 x-reads))
+		   (->buffer (nth 1 x-reads))
+		   (->buffer (nth 2 x-reads))))
+	  ((find op-type '(:+ :- :* :/ :< :> :<= :>= := :mod :floordiv))
+	   ;; Arithmetic
+	   (let ((op-c (case op-type
+			 (:mod "%")
+			 (:floordiv "/") ;; assume out_dtype is properly set to integer.
+			 (T op-type))))
+	     (format stream "~a~a ~a = (~a);~%"
+		     (indent)
+		     (cName dtype)
+		     (->buffer (car x-writes))
+		     (apply
+		      #'concatenate
+		      'string
+		      (butlast
+		       (loop for arg in x-reads
+			     for arg-buff = (->buffer arg)
+			     append
+			     (list arg-buff (format nil "~a" op-c))))))))
+	  (T
+	   (case op-type
+	     (T
+	      (error "Not implemented fcall: ~a" op-type)))))))
      :store
      ((x1 x2 reduction)
       (format stream "~a~a = ~a; // UOp.Store~%" (indent) (->buffer x1) (->buffer x2))))))
+
+;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defmethod aten/engine:render-graph ((backend (eql :clang)) uopgraph)
   (with-output-to-string (out)
@@ -223,10 +298,22 @@
 	(uop->line out op)))))
 
 (defmethod aten/engine:render-buffer ((backend (eql :clang)) buffer)
+  (when (numberp buffer)
+    (return-from aten/engine:render-buffer (format nil "~a" buffer)))
+  
   (aten/engine:buffercase
    buffer
-   :string ((value) value)
-   :packed ((packed-objects) (error "not ready"))
+   :string ((value) (cName value))
+   :packed ((packed-objects type)
+	    (format nil "~a(((const ~a[]){~a}))"
+		    (aten-simd-pack-array type)		    
+		    (cType type)
+		    (apply
+		     #'concatenate
+		     'string
+		     (butlast
+		      (loop for obj in packed-objects
+			    append (list (aten/engine:render-buffer backend obj)  ", "))))))
    :const ((value type pointer)
 	   (declare (ignore type pointer))
 	   (typecase value
@@ -245,7 +332,7 @@
 		   'string
 		   (butlast
 		    (loop for s in subscripts
-			  append (list s ", "))))))))
+			  append (list (aten/engine:render-buffer backend s) ", "))))))))
 
 (defun load-foreign-function (source &key (compiler "gcc") (lang "c") (compiler-flags))
   (declare (type string source compiler))
