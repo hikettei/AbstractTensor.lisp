@@ -113,12 +113,12 @@
 			   'list
 			   #'(lambda (x)
 			       (if (pack-buffer? x)
-				   x
 				   (if (aref-buffer-p x)
 				       (make-aref-buffer
 					:name (aten/ir::make-aten (intern (->unroll-idx (format nil "~a" (aten/ir:aten-id (aref-buffer-name x))) nth)) (aten/ir:aten-type-class (aref-buffer-name x)) `(,n-pack) `(0) nil)
 					:idx  (aref-buffer-idx x))
-				       (->unroll-idx x nth))))
+				       (->unroll-idx x nth))
+				   x))
 			   idx))))
 		 buffer)))
     
@@ -150,7 +150,7 @@
 		   (push (uop-load-x1 op) seen)
 		   (with-slots ((x1 x1) (x2 x2)) op
 		     (if (equal (uop-load-reduction op) simd-idx)
-			  op
+			 op
 			 (if (packed-buffer-p x2)
 			     (loop for nth upfrom 0 below n-pack
 				   collect

@@ -197,7 +197,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 	      )
 	 ;; [TODO] Implement auto scheduler to determine the number of unrolling number.
 	 ;; [TODO] Unroll simdfied Iterations
-	 (loop for (depth . range) in (list (nth 0 loops) (nth 1 loops)) do
+	 (loop for (depth . range) in (list (nth 0 loops) (nth 1 loops) (nth 2 loops)) do
 	   ;; Attempts to vectorize
 	   (%uopgraph-vectorize graph (range-id (uop-loop-iters range)) scope-type))))
       (:scalar

@@ -116,9 +116,17 @@ If specified, render the code like:
     (const dtype[]){__object_}"
     ((packed-objects nil :type (and list (satisfies buffer-list-p)))
      (dtype nil :type Dtypes))
-    :read  (apply #'append (map 'list #'uop-reads  (packed-buffer-packed-objects buffer)))				    
-    :write (apply #'append (map 'list #'uop-writes (packed-buffer-packed-objects buffer))))    
- 
+    :read  (loop for x in (packed-buffer-packed-objects buffer)
+		 if (stringp x)
+		   append (list x)
+		 else
+		   append (uop-reads x))
+    :write  (loop for x in (packed-buffer-packed-objects buffer)
+		  if (stringp x)
+		    append (list x)
+		  else
+		    append (uop-writes x)))
+  
   (deftype Buffers ()
     `(or Const-Buffer Aref-Buffer Packed-Buffer String))
   
@@ -310,7 +318,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
      (op-type nil :type Operators)
      (dtype   nil :type Dtypes)
      (reduction nil :type (or null string)))
-    :read  (uop-alu-x-reads uop)
+    :read  (apply #'append (map 'list #'uop-reads (uop-alu-x-reads uop)) (list (uop-alu-x-reads uop)))
     :write (uop-alu-x-writes uop))
   (defmethod print-object ((alu UOp-ALU) stream)
     (format stream "ALU [~a][~a]: ~a -> ~a~%"
