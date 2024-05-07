@@ -233,7 +233,7 @@ EndIF
 Ignore this op when compiling.
 "
     ((var nil :type graph-id)
-     (type :float :type dtypes)
+     (dtype :float :type dtypes)
      (pointer-p nil :type boolean))
     :write (list (uop-declare-var-var uop)))
 

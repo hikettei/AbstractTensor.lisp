@@ -9,9 +9,9 @@
 ;; Reading list for myself:
 ;;  - https://github.com/Leslie-Fang/GEMM_Optimization/blob/master/optimization8/optimization8.cpp
 
-
+	    
 ;; [TODO] あえて最初は冗長に記述して，後からSimplifierで最適化する
-(defun vectorize-uops (uops simd-idx n-pack &aux (seen (list simd-idx)))
+(defun vectorize-uops (uops-full uops simd-idx n-pack &aux (seen (list simd-idx)))
   (labels ((->unroll-idx (name nth)
 	     (if (equal (aref name 0) #\_)
 		 (format nil "~a_~a" name nth)
@@ -38,12 +38,12 @@
 	     (buffercase
 	      buffer
 	      :string ((value)
-		       (warn ":float is temporaray!!! WE NEED TO IMPLEMENT A COMPLETE TYPE INFERENCE!!!")
-		       (if (pack-buffer? value)
-			   (pack-name value)
-			   (make-packed-buffer
-			    :dtype :float
-			    :packed-objects (repeat value :float))))
+		       (let ((type (infer-type-from-uop uops-full value)))
+			 (if (pack-buffer? value)
+			     (pack-name value)
+			     (make-packed-buffer
+			      :dtype type
+			      :packed-objects (repeat value type)))))
 	      :const  ((value type pointer-p)
 		       (if (pack-buffer? value)
 			   (make-const-buffer

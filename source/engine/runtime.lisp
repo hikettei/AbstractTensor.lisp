@@ -156,6 +156,28 @@ Return: (values type-keyword pointer-p)"
     (declare (ignore idx))
     (values (aten/ir:aten-type-class name) nil))))
 
+(defun infer-type-from-uop (uops name)
+  (declare (type string name))
+  (macrolet ((found (value)
+	       `(return-from infer-type-from-uop ,value)))
+    (loop for op in uops
+	  for writes = (uop-writes op)
+	  if (find name writes :test #'equal)
+	    do (uopcase
+		op
+		:loop ((iters) (found :int))
+		:load ((x1 x2 reduction) 
+		       (when (not (stringp x2))
+			 (found (infer-buffer-type x2))))
+		:store ((x1 x2 reduction)
+			(when (not (stringp x1))
+			  (found (infer-buffer-type x1))))
+		:alu   ((x-writes x-reads op-type dtype reduction)
+			(found dtype))
+		:declare-var ((name dtype pp) (found dtype))))
+    (error "infer-type-from-uop: failed to infer the type of ~a" name)))
+
+
 (defmacro with-debug-level ((n-level) &body body)
   `(when (or
 	  (null *runtime*)

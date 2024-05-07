@@ -110,7 +110,7 @@
        (T (error "fell through"))))
     (:int
      (cond
-       (*arm-neon-p* "int64x2_t")
+       (*arm-neon-p* "int32x4_t")
        (T (error "fell through"))))))
 
 (defun aten-simd-pack-array (dtype)

@@ -169,13 +169,14 @@
 		  "Assertion failed")
 	  (values sliced start end))))))
 
-(defun unroll-uops (uops unroll-idx unroll-by &aux (seen (list unroll-idx)))
+(defun unroll-uops (uops-full uops unroll-idx unroll-by &aux (seen (list unroll-idx)))
   "
 for (int i=0;i<3;i+=2) {
     int k = i;            | <- unroll-uops this area as an `uops`
     ...                   | <- rewriting each ops as unrolled ops
 }
 "
+  (declare (ignore uops-full))
   ;; [TODO] Unroll
   ;; Load -> Unroll
   ;; ALU -> Unroll
@@ -392,7 +393,7 @@ for (int i=0;i<3;i+=2) {
 		  (setf (range-from new-range) (range-id new-range))
 		  (list (make-uop-load :x1 (range-id old-range) :x2 (make-const-buffer :value (range-from old-range) :type :int))))
 		(list (make-uop-loop :iters new-range))
-		(funcall unroller (cdr (butlast loop-body)) (range-id old-range) unroll-by)
+		(funcall unroller (uopgraph-uops graph) (cdr (butlast loop-body)) (range-id old-range) unroll-by)
 		(list (make-uop-endloop :iters new-range))))
 	     (new-loop-body `(,@unrolled-loop-body ,@loop-reminder))
 	     ;; Replace the existing loop with unrolled loop
