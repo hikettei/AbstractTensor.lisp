@@ -179,7 +179,19 @@ This is the top-level function for compiling UOps. Based on the compilation deta
     
     ;; 7. Parallelize
     (case (runtimeconfig-vectorize-strategy *runtime*)
-      (:disabled nil) ;; Ignored
+      (:disabled
+       (let* ((scope-type (runtimeconfig-scoping-type *runtime*))
+	      (loops (loop with depth = 0
+		           for uop in (uopgraph-uops graph)
+			   if (uop-loop-p uop)
+			     collect
+			     (prog1
+				 (cons depth uop)
+			       (incf depth))
+			   if (uop-endloop-p uop)
+			     do (decf depth))))
+	 (loop for (depth . range) in loops do
+	   (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type))))
       (:vector
        
        ;; Memo: Row-MajorならInnnerMost/ColumnならOutmostでSIMDにPackする。?
@@ -197,7 +209,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 	      )
 	 ;; [TODO] Implement auto scheduler to determine the number of unrolling number.
 	 ;; [TODO] Unroll simdfied Iterations
-	 (loop for (depth . range) in (list (nth 0 loops) (nth 1 loops) (nth 2 loops)) do
+	 (loop for (depth . range) in loops do
 	   ;; Attempts to vectorize
 	   (%uopgraph-vectorize graph (range-id (uop-loop-iters range)) scope-type))))
       (:scalar

@@ -66,10 +66,7 @@
 			    :dtype type
 			    :packed-objects (repeat buffer type))))
 	      :packed ((objects dtype)
-		       (print buffer)
-		       ;;(print objects)
-		       (error "TODO???")
-		       buffer)
+		       (error "Assertion Failed"))
 	      :aref ((name idx)
 		     (if (pack-buffer? (format nil "~a" (aten/ir:aten-id name)))
 			 (pack-name (aten/ir:aten-id name))
