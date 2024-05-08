@@ -407,10 +407,14 @@ Compiled with: ~a"
      compiled-code
      :compiler *cc*
      :compiler-flags
-     (list
-      "-fPIC"
-      (format nil "-O~a" *opt*)
-      (format nil "-march=~a" *march*))) 
+     (append
+      (list
+       "-fPIC"
+       (format nil "-O~a" *opt*)
+       (format nil "-march=~a" *march*))
+      
+      (when *arm-neon-p*
+	(list "-mfpu=neon" "-ftree-vectorize"))))
     ;; inputs = a list of abstracttensor
     
     (aten/engine:make-compiled-composite (compile nil (make-cffi-call-form named inputs)) composite header-object)))
