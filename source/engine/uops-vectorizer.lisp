@@ -11,6 +11,15 @@
 
 	    
 ;; [TODO] あえて最初は冗長に記述して，後からSimplifierで最適化する
+;; [MEMO] Unrollと混ざって考えるせいで，コンパイル時にPackedBufferかUnrolLEDBufferかわからない。
+;; infer-type-engineみたいなのを作成して毎回TypeInferするべきか？？？
+;; or Packedしか存在しないという仮定をおきたい
+
+(defun prefix-p (prefix name)
+  (if (>= (length name) (length prefix))
+      (string= prefix (subseq name 0 (length prefix)))
+      nil))
+
 (defun vectorize-uops (uops-full uops simd-idx n-pack &aux (seen (list simd-idx)))
   (labels ((->unroll-idx (name nth)
 	     (if (equal (aref name 0) #\_)
@@ -29,7 +38,7 @@
 	     (let ((name (if (aref-buffer-p name)
 			     (format nil "~a" (aten/ir:aten-id (aref-buffer-name name)))
 			     name)))
-	       (find name seen :test #'equal)))	   
+	       (find name seen :test #'equal)))
 	   (pack-name    (name) (if (pack-buffer? name) (packed-name name) name))
 	   (repeat (obj type)
 	     (if (pack-buffer? obj)
@@ -43,15 +52,32 @@
 		 (loop for nth upfrom 0 below n-pack
 		       collect obj)))
 	   (unroll-packed-buffer (buffer nth)
-	     (make-packed-buffer
-	      :packed-objects (map 'list #'(lambda (bf) (unroll-buffer bf nth)) (packed-buffer-packed-objects buffer))
-	      :dtype (packed-buffer-dtype buffer)))
+	     (if (and
+		  (packed-buffer-p buffer)
+		  (stringp (car (packed-buffer-packed-objects buffer)))
+		  (every #'(lambda (x) (string= x (car (packed-buffer-packed-objects buffer)))) (packed-buffer-packed-objects buffer))
+		  (pack-buffer? (car (packed-buffer-packed-objects buffer))))
+		 (packed-name (car (packed-buffer-packed-objects buffer)))
+		 (if (and
+		      (packed-buffer-p buffer)
+		      (every #'aref-buffer-p (packed-buffer-packed-objects buffer))
+		      (let ((reads (map 'list #'aref-buffer-idx (packed-buffer-packed-objects buffer))))
+			(every (alexandria:compose #'pack-buffer? #'car) reads)))
+		     (make-packed-buffer
+		      :packed-objects (loop for i upfrom 0
+					    for bf in (packed-buffer-packed-objects buffer)
+					    collect
+					    (print (make-aref-buffer :name (aref-buffer-name bf) :idx (unroll-buffer (print (aref-buffer-idx bf)) i))))
+		      :dtype (packed-buffer-dtype buffer))
+		     (make-packed-buffer
+		      :packed-objects (map 'list #'(lambda (bf) (unroll-buffer bf nth)) (packed-buffer-packed-objects buffer))
+		      :dtype (packed-buffer-dtype buffer)))))
 	   (pack-buffer (buffer)
 	     (buffercase
 	      buffer
 	      :string ((value)
 		       (let ((type (infer-type-from-uop uops-full value)))
-			 (if (pack-buffer? value)
+			 (if (pack-buffer? value) ;; ここで _val_7がTになるようにしたい
 			     (pack-name value)
 			     (make-packed-buffer
 			      :dtype type
@@ -281,7 +307,6 @@ the current *runtime* do not know the number of SIMD_LEN: ~a" *runtime*)
     ;; Rewriting LOAD/STORE/ALU using %uopgraph-unroll
     (let ((blocksize (/ (runtimeconfig-simd-len *runtime*) (dtype-size (car found-dtypes)))))
       (assert (integerp blocksize) () "Assertion Failed with: (/ SIMD_LEN Dtype_Size) == Integer. butgot =~a" blocksize) 
-      (%uopgraph-unroll graph idx blocksize scoping-type :unroller #'vectorize-uops
-			))))
+      (%uopgraph-unroll graph idx blocksize scoping-type :unroller #'vectorize-uops))))
 
 

@@ -96,10 +96,10 @@
 
     ;; Allows vectorization
     (when (or *sleef-p* *arm-neon-p*)
-      (when (null *simd-len*)
-	(error "Cannot enable auto vectorization because SIMD_LEN is not declared."))
-      (setf (aten/engine::runtimeconfig-vectorize-strategy aten/engine::*runtime*) :vector)
-      (set-simd-id *simd-len*))))
+      (when  *simd-len*
+	(error "Cannot enable auto vectorization because SIMD_LEN is not declared.")
+	(setf (aten/engine::runtimeconfig-vectorize-strategy aten/engine::*runtime*) :vector)
+	(set-simd-id *simd-len*)))))
 
 ;; ~~ SIMD Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
