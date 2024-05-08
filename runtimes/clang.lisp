@@ -305,7 +305,8 @@
 (defmethod aten/engine:render-buffer ((backend (eql :clang)) buffer)
   (when (numberp buffer)
     (return-from aten/engine:render-buffer (format nil "~a" buffer)))
-  
+  (when (keywordp buffer)
+    (return-from aten/engine:render-buffer (format nil "~(~a~)" buffer)))
   (aten/engine:buffercase
    buffer
    :string ((value) (cName value))
