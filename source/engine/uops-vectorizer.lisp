@@ -245,7 +245,7 @@
 			  :reduction (uop-alu-reduction op)))))
 		  (UOp-Loop
 		   (progn
-		     (error "not ready!")
+		     (error "not ready! UOp-Loop[Vectorize]")
 		     ))
 		  (T
 		   (error "unroll-uops: add the case to simdify ~a" op)

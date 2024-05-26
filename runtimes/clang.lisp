@@ -173,7 +173,7 @@
     (:float "float")
     (:int "int64_t")))
 
-(defun uop->line (stream uop)
+(defun uop->line (stream uop uops-full)
   (flet ((->buffer (object)
 	   (if (numberp object)
 	       (format nil "~a" object)
@@ -241,7 +241,7 @@
      :load
      ((x1 x2 reduction)
       (multiple-value-bind (type pointer-p)
-	  (aten/engine:infer-buffer-type x2)
+	  (aten/engine:infer-buffer-type x2 :uops uops-full)
 	(let ((simd-p (or (aten/engine::packed-buffer-p x2) (prefix-p "__packed" x1))))
 	  (format stream "~a~(~a~) ~a~a = ~a; // UOp.Load~%"
 		  (indent)
@@ -300,7 +300,7 @@
     (let ((indent 0))
       (declare (ignore indent))
       (dolist (op (aten/engine:uopgraph-uops uopgraph))
-	(uop->line out op)))))
+	(uop->line out op (aten/engine:uopgraph-uops uopgraph))))))
 
 (defmethod aten/engine:render-buffer ((backend (eql :clang)) buffer)
   (when (numberp buffer)
@@ -371,7 +371,7 @@ Compiled with: ~a"
     (cffi:load-foreign-library sharedlib)))
 
 
-(defun make-cffi-call-form (name inputs &aux (inames (map 'list #'(lambda (x) (intern (symbol-name (aten/ir:aten-id x)))) inputs)))
+(defun make-cffi-call-form (name inputs &aux (inames (map 'list #'(lambda (x) (intern (aten/ir:aten-id x))) inputs)))
   (labels ((expand (rest-forms rest-binds body)
 	     (if rest-forms
 		 (if (null (aten/ir:aten-shape (car rest-forms)))

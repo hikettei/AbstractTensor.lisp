@@ -96,7 +96,7 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
      (type :float :type Dtypes)
      (pointer-p nil :type boolean))
     :read (typecase (const-buffer-value buffer)
-	    (aten/ir:AbstractTensor (list (symbol-name (aten/ir:aten-id (const-buffer-value buffer)))))
+	    (aten/ir:AbstractTensor (list (aten/ir:aten-id (const-buffer-value buffer))))
 	    (T (list (const-buffer-value buffer))))
     :write nil)
 
@@ -107,7 +107,7 @@ Const could be one of: number string aten/ir:AbstractTensor[Scalar] keyword symb
     :read (append
 	   (loop for x in (aref-buffer-idx buffer)
 		 if (not (numberp x)) collect x)
-	   (list (symbol-name (aten/ir:aten-id (aref-buffer-name buffer))))))
+	   (list (aten/ir:aten-id (aref-buffer-name buffer)))))
 
   (define-buffer Packed
     "Packed [packed-object1 packed-object2 packed-pbject3 ...]

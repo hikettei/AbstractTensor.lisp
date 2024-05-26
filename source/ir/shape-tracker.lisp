@@ -14,7 +14,7 @@ A{T}[M, ~, N]<1 ~ 0>(where M = 1)
 | |- One of: T, Dense, Sparse, Complex, and (U)Int4~64, FP16, FP32, FP64. or arbitary symbol. (AutoInfer)
 |--- The name of tensor.
 "
-  (id (or id (gensym "TID")) :type symbol)
+  (id (or id (symbol-name (gensym "TID"))) :type string)
   (type-class type-class :type keyword)
   (shape shape :type list)
   (order order :type list)
@@ -197,7 +197,7 @@ Example:
 		      collect (cons name exp)
 		    else
 		      do (error "="))))
-	(make-aten name (intern (symbol-name (car type)) "KEYWORD") shape stride where-pretty)))))
+	(make-aten (symbol-name name) (intern (symbol-name (car type)) "KEYWORD") shape stride where-pretty)))))
 
 (defun parse-aten (expression)
   (declare (inline %parse-aten))

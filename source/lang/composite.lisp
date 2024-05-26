@@ -23,7 +23,7 @@
 	 :path ""
 	 :name (config-of composite "name" (gensym "CID"))
 	 :inputs (map 'list #'aten/ir:parse-aten (config-of composite "inputs"))
-	 :outputs (map 'list #'(lambda (x) (intern (string-upcase x) "KEYWORD")) (config-of composite "outputs"))
+	 :outputs (map 'list #'(lambda (x) (string-upcase x)) (config-of composite "outputs"))
 	 :code (config-of impl "code")
 	 :test-requirements (if (eql test :none)
 				nil

@@ -116,7 +116,7 @@ And body:
 	(append
 	 (list
 	  (make-uop-alu
-	   :x-writes add-writes	   
+	   :x-writes add-writes
 	   ;; C = A * B + C
 	   :x-reads
 	   (let ((a (car mul-reads))
@@ -187,7 +187,10 @@ And body:
 				  ,accessor
 				  (,wrap replace-with)
 				  tgt))
-			(setf ,accessor (,wrap replace-with)
+			(setf ,accessor (let ((val (,wrap replace-with)))
+					  (if (aten/ir::abstracttensor-p val)
+					      (aten/ir::aten-id val)
+					      val))
 			      changed-p t)))))
 	;; [TODO] More
 	(labels ((->name (obj)
@@ -347,16 +350,21 @@ And body:
 				       ,@(loop for x in new-args
 					       if (not (numberp arg)) collect x))))
 			  new-args)))
-       
+       (print new-args)
        (cond
 	 ((and (every #'numberp new-args) (= (length new-args) 1))
-	  (loop for x-write in (uop-alu-x-writes alu)
+	  (loop with type = (if (uop-load-p (car ys))
+				(const-buffer-type (uop-load-x2 (car ys)))
+				(if (uop-alu-p (car ys))
+				    (uop-alu-dtype (car ys))
+				    (error "ConstPropagation: Cannot infer the dtype from ~a" (car ys))))
+		for x-write in (uop-alu-x-writes alu)
 		collect
 		(make-uop-load
 		 :x1 x-write
 		 :x2 (make-const-buffer
 		      :value (car new-args)
-		      :type (const-buffer-type (uop-load-x2 (car ys)))
+		      :type  type
 		      :pointer-p nil))))
 	 ((eql (uop-alu-op-type alu) :wmma)
 	  (trivia:match new-args
@@ -400,7 +408,7 @@ And body:
 			    if (or (numberp arg) (typep arg 'graph-id))
 			      collect arg
 			    else
-			      collect (uop->buffer arg))
+			      collect (or (uop->buffer arg) arg))
 	    :op-type (uop-alu-op-type alu)
 	    :dtype   (uop-alu-dtype alu))))))))
 

@@ -278,7 +278,7 @@ for (int i=0;i<3;i+=2) {
 		 (progn;;let ((loop-subbody (slice-loop-entity uops (range-id (uop-loop-iters op)))))
 		   ;; TODO
 		   ;; ループごと繰り返すように実装したい。(がテストするのがめんどくさい) Conv実装する時にでも。。。
-		   (error "not ready!")
+		   (error "not ready! UOp-Loop[Unroll]")
 		   ))
 		(T
 		 (error "unroll-uops: add the case for unrolling ~a" op)

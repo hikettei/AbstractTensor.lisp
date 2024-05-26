@@ -74,7 +74,7 @@
 	    (when (not (string= x value))
 	      (recursively-find-deps uops x)))
 	buffers)))
-     :test #'equal)))
+     :test #'equalp)))
 
 (defun compute-determined-iters (uops)
   (let ((iters))
@@ -161,7 +161,6 @@ This is the top-level function for compiling UOps. Based on the compilation deta
   
   ;; 1. Creates the UOpGraph Object.
   (let* ((graph  (make-uopgraph uops)))
-
     ;; 2. Applies the first (user-defined) simplification process.
     
     ;; See also: [./uops-simplifier.lisp]
@@ -179,7 +178,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
     
     ;; 7. Parallelize
     (case (runtimeconfig-vectorize-strategy *runtime*)
-      (:disabled
+      (:disabled ;; :disabled
        (let* ((scope-type (runtimeconfig-scoping-type *runtime*))
 	      (loops (loop with depth = 0
 		           for uop in (uopgraph-uops graph)
@@ -216,8 +215,8 @@ This is the top-level function for compiling UOps. Based on the compilation deta
        (warn "strategy=scalar is not ready!")
        nil))
 
-    ;;(%uopgraph-simplify graph)
+    (%uopgraph-simplify graph)
     ;; 8. It's all! returns the optimized UOpGraph structure.
-    ;;(print graph)
+    ;; (print graph)
     graph))
 

@@ -6,9 +6,8 @@
 (defun find-output-positions (uop-defun)
   (declare (type UOp-Defun uop-defun))
   (let ((outputs (uop-defun-outputs uop-defun)))
-    (loop for o in outputs
-	  for k = (symbol-name o)
-	  collect (position k (uop-defun-inputs uop-defun) :key (alexandria:compose #'symbol-name #'aten/ir:aten-id) :test #'equal))))
+    (loop for k in outputs
+	  collect (position k (uop-defun-inputs uop-defun) :key (alexandria:compose #'aten/ir:aten-id) :test #'equal))))
 
 (defstruct (Compiled-Composite
 	    (:conc-name cc-)
@@ -147,7 +146,7 @@ return -> (values accuracy time_compiled_composite time_test_code)"
 		       (if (aten/ir:aten-shape arg)
 			   (let ((shapes (map 'list #'(lambda (x) (gethash (symbol-name x) variables)) (aten/ir:aten-shape arg))))
 			     (funcall f arg shapes))
-			   (let ((value (gethash (symbol-name (aten/ir:aten-id arg)) variables)))
+			   (let ((value (gethash (aten/ir:aten-id arg) variables)))
 			     (assert value () "test-composite: A scalar tensor ~a is not provided." arg)
 			     value))))))
 

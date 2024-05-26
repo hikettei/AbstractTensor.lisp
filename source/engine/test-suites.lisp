@@ -33,4 +33,8 @@
 	(ok
 	 (and (find-alu :wmma) (not (find-alu :+)) (not (find-alu :*)))))))
 
+;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 ;; [MEMO] cl-waffe2と同じで，HW-Independentにテストを記述する
+;; [TODO] Flops計算 etc
+

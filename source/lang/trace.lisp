@@ -42,6 +42,16 @@
 		else
 		  collect `(* ,ref ,@stride))))))
 
+(defun infer-dtype-from-uop (uop)
+  (typecase uop
+    (aten/engine::UOp-Load
+     (aten/engine:infer-buffer-type
+      (aten/engine::uop-load-x2
+       uop)))
+    (aten/engine::UOp-ALU
+     (aten/engine::uop-alu-dtype uop))
+    (T
+     (error "Cannot infer the type when tracing the graph: ~a" uop))))
 ;; TODO: Replace it with Elegant BNF Parser
 ;; Feature Enhancement
 ;; (op X{Array} Y{Array})
@@ -63,7 +73,7 @@
 	 (read-cache (content)
 	   ;; Equivalent to doing tpsort
 	   (car (gethash content (counter-cache counter)))))
-	    
+
     (trivia:ematch form
       ;; Iteration over var
       ;; (dotimes (i var) ..)
@@ -89,7 +99,7 @@
       ;; (for (x from to by)
       ;; ...)
       ;; TODO: Update
-      ((list* 'for (list bind from to by) _)
+      ((list* 'loop (list bind from to by) _)
        (let* ((from-uop (explore from))
 	      (to-uop   (explore to))
 	      (by-uop   (explore by))
@@ -110,9 +120,8 @@
 		 :iters range))
 	   (remhash bind scope))))
       ;; (- a) -> -a
-      ((list '- form)
-       (error "not ready")
-       )
+      ((list '- form1)
+       (explore `(* -1 ,form1)))
       
       ;; arithmetic
       ((list* (or '+ '- '* '/ '> '>= '< '<= '=) _)
@@ -133,7 +142,7 @@
 	      (op
 		(aten/engine:make-uop-alu
 		 :x-writes
-		 (list "non_determined")
+		 (list "")
 		 :x-reads
 		 (loop for arg in args
 		       append (list (aten/engine:uop->buffer (car (last arg)))))
@@ -146,8 +155,9 @@
 		    (list alu)
 		  (incf (counter-alu counter)))))
 	 (setf
-	  (aten/engine::uop-alu-x-writes op)  alu-idx 
-	  (aten/engine::uop-alu-x-writes op1) alu-idx)
+	  ;;(aten/engine::uop-alu-x-writes op)  alu-idx 
+	  (aten/engine::uop-alu-x-writes op1) alu-idx
+	  )
 	 (or (read-cache op)
 	     (progn
 	       (cache op (list op1) dtype)
@@ -156,7 +166,7 @@
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
       ((list (or 'incf 'decf 'mulcf 'divcf) form1)
-       (error "not ready"))
+       (error "not ready: ~a" form))
       
       ((list (or 'incf 'decf 'mulcf 'divcf) to what)
        (let* ((op (case (car form)
@@ -185,10 +195,29 @@
 	     :x1 (aten/engine::uop-load-x2 (car (last to)))
 	     :x2 (aten/engine:uop->buffer  (car (last what)))))))
 
+      ;; Binds `what` to `to`
+      ((list 'set to what)
+       (let ((to (progn
+		   (unless (symbolp to) (error "(setf to what) to must be a symbol but got ~a" to))
+		   (symbol-name to)))
+	     (what (explore what)))
+	 (setf (gethash to scope) (cons to (infer-dtype-from-uop (car (last what)))))
+	 `(,@what
+	   ,(aten/engine:make-uop-declare-var
+	     :var to
+	     :dtype (infer-dtype-from-uop (car (last what)))
+	     ;; [TODO] Inferencing pointer-p
+	     :pointer-p
+	     (progn
+	       (warn "[WIP] (set to what) assumes `what` to be scalar.: ~a" form)
+	       nil))
+	   ,(aten/engine:make-uop-load
+	     :x1 to
+	     :x2 (aten/engine:uop->buffer (car (last what)))))))
       ;; (if exp then &optional else)
 
       ((list* 'if cond _)
-       (error "not ready")
+       (error "not ready. if")
        )
 
       ;; progn -> { forms }
@@ -230,7 +259,7 @@
 
       ;; funcall. (car cdr)
       ((list* (type symbol) _)
-       (error "not ready")
+       (error "not ready: funcall ~a" form)
        )
       ;; number
       ((type number)
@@ -291,7 +320,7 @@
   (assert aten/engine::*runtime* () "trace-uops: *runtime* is not declared.")
 
   (dolist (input inputs)
-    (let ((input-id (symbol-name (aten/ir:aten-id input))))
+    (let ((input-id (aten/ir:aten-id input)))
       (push (aten/engine:make-uop-declare-var :var input-id :dtype (aten/ir:aten-type-class input) :pointer-p (not (null (aten/ir:aten-shape input)))) declares)
       (setf (gethash input-id scope)
 	    (cons input (aten/ir:aten-type-class input))))

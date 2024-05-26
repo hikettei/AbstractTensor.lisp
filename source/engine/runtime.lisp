@@ -110,7 +110,7 @@ See also: `declare-runtime`
 		    append
 		    (loop for s in (aten/ir:aten-shape i)
 			  if (not (numberp s))
-			    collect s))))
+			    collect (symbol-name s)))))
 	   (function-name (or function-name (make-function-name composite dynamic-shapes)))
 	   (header (aten/engine:make-uop-defun
 		    :inputs
@@ -134,13 +134,10 @@ See also: `declare-runtime`
 	  (values compiled-composite compiled-code))))))
 
 ;; Utils
-(defun infer-buffer-type (buffer)
+(defun infer-buffer-type (buffer &key (uops))
   "Infers the type of buffer.
 Return: (values type-keyword pointer-p)"
   (declare (type buffers buffer))
-
-  (when (stringp buffer)
-    (error "Cannot infer the type of ~a." buffer))
 
   (buffercase
    buffer
@@ -154,7 +151,10 @@ Return: (values type-keyword pointer-p)"
    :aref
    ((name idx)
     (declare (ignore idx))
-    (values (aten/ir:aten-type-class name) nil))))
+    (values (aten/ir:aten-type-class name) nil))
+   :string ((value) (or
+		     (and uops (infer-type-from-uop uops buffer))
+		     (error "[infer-buffer-type] Cannot infer the type of ~a.~%Note: By providing whole uop graphs via :uops, the compiler may infer the type of string." buffer)))))
 
 (defun infer-type-from-uop (uops name)
   (declare (type string name))
