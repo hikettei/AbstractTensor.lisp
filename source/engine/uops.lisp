@@ -321,7 +321,7 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
     :read  (apply #'append (map 'list #'uop-reads (uop-alu-x-reads uop)) (list (uop-alu-x-reads uop)))
     :write (uop-alu-x-writes uop))
   (defmethod print-object ((alu UOp-ALU) stream)
-    (format stream "ALU [~a][~a]: ~a -> ~a~%"
+    (format stream "{ALU [~a][~a]: ~a -> ~a}~%"
 	    (uop-alu-op-type alu)
 	    (uop-alu-dtype alu)
 	    (uop-alu-x-reads alu)
@@ -417,6 +417,7 @@ write <- read
 	   ;; (assert (= (length out) 1))
 	   (car out))
 	 (eliminate-buffer out #'uop-writes)))
+   (when (typep uop 'aref-buffer) uop)
    ;;(error "~a cannot be a buffer." uop)
    nil))
 

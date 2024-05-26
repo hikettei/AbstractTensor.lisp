@@ -279,7 +279,7 @@ And body:
 			
 			(when replacement
 			  (with-debug-level (3)
-			    (format t "~%[Simplifier] ~a ALU[~a] ~a -> ~a"
+			    (format t "~%[Simplifier] ~a ALU[~a] (Replace: ~a ==> ~a)~%"
 				    ,msg
 				    (uop-alu-op-type z)
 				    ys
@@ -347,7 +347,7 @@ And body:
 				       ,@(loop for x in new-args
 					       if (not (numberp arg)) collect x))))
 			  new-args)))
-
+       
        (cond
 	 ((and (every #'numberp new-args) (= (length new-args) 1))
 	  (loop for x-write in (uop-alu-x-writes alu)
