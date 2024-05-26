@@ -327,10 +327,6 @@ ALU [x_writes1 x_writes2] [x_read1 x_read2 ...], op-type
 	    (uop-alu-x-reads alu)
 	    (uop-alu-x-writes alu)))
 
-  (define-uop WMMA
-    ""
-    ())
-
   (define-uop Cast
     ""
     ())

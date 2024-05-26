@@ -18,7 +18,7 @@
      :floordiv ;; A // B, a.k.a: (floor X Y)
 
      ;; Special Ops
-     :muladd ;; muladd(A, B, C) = A * B + C
+     :wmma
 
      ;; Mathematical Functions (WIP)
      :exp     

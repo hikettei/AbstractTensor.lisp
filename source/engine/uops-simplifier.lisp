@@ -87,7 +87,7 @@ And body:
 ;; ~~~ Hand-Coded Simplifiers ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ;; (A * B) + C -> MulADD(A, B, C)
-(define-simplifier MulAdd (uops uops-full)
+(define-simplifier WMMA-Fusion (uops uops-full)
   (let* ((mul (first  uops))
 	 (add (uops/value->users uops-full (uop->buffer mul))))
     (and
@@ -110,7 +110,7 @@ And body:
 	(find (car mul-writes) add-reads :test #'equal)
 	(progn
 	  (with-debug-level (3)
-	    (format t "[Simplifier] Fused: A*B+C -> MulAdd.~%~a~a" add mul))
+	    (format t "[Simplifier] Fused: A*B+C -> WMMA.~%~a~a" add mul))
 	  t)
 	;; Merge and rewrite uops
 	(append
@@ -126,7 +126,7 @@ And body:
 			  if (not (string= r (car mul-writes)))
 			    do (return-from find-c r))))
 	     (list a b c))
-	   :op-type :muladd
+	   :op-type :wmma
 	   :dtype (uop-alu-dtype add)
 	   :reduction (or (uop-alu-reduction mul) (uop-alu-reduction add))))
 	 (remove-uops
@@ -291,7 +291,7 @@ And body:
   (def Propagate-Constants
     "Constant Propagation"
     ((alu ys)
-     (when (not (find (uop-alu-op-type alu) `(:+ :- :* :/ := :< :<= :> :>= :muladd)))->failed)
+     (when (not (find (uop-alu-op-type alu) `(:+ :- :* :/ := :< :<= :> :>= :wmma)))->failed)
      (let* ((new-args
 	      (loop for y-old in ys
 		    if (uop-load-p y-old)
@@ -321,15 +321,15 @@ And body:
 				(declare (ignore idx name))
 				x2)
 			 ;; Packed Load/Store cannot be fused
-			 :packed ((packed-objects) ->failed)
+			 :packed ((packed-objects dtype) ->failed)
 			 :string ((value) (error "not tested this line yet") value)))
 		    if (uop-alu-p y-old)
 		      collect (car (uop-alu-x-writes y-old))))
 	    (new-args (loop for x in new-args if x collect x))
 	    (new-args (if (every #'numberp new-args)
 			  (case (uop-alu-op-type alu)
-			    (:muladd (list (+ (* (nth 0 new-args) (nth 1 new-args)) (nth 2 new-args))))
-			    (T       (list (apply (intern (symbol-name (uop-alu-op-type alu))) new-args))))
+			    (:wmma (list (+ (* (nth 0 new-args) (nth 1 new-args)) (nth 2 new-args))))
+			    (T     (list (apply (intern (symbol-name (uop-alu-op-type alu))) new-args))))
 			  new-args))
 	    (new-args (if (and
 			   (find (uop-alu-op-type alu) `(:+ :*))
@@ -358,7 +358,7 @@ And body:
 		      :value (car new-args)
 		      :type (const-buffer-type (uop-load-x2 (car ys)))
 		      :pointer-p nil))))
-	 ((eql (uop-alu-op-type alu) :muladd)
+	 ((eql (uop-alu-op-type alu) :wmma)
 	  (trivia:match new-args
 	    ((list (type number) (type number) (type symbol))
 	     (list
@@ -373,7 +373,7 @@ And body:
 	      (make-uop-alu
 	       :x-writes (uop-alu-x-writes alu)
 	       :x-reads new-args
-	       :op-type :muladd
+	       :op-type :wmma
 	       :dtype (uop-alu-dtype alu))))))
 	 ((= (length new-args) 1)
 	  (if (find (uop-alu-op-type alu) `(:+ :*))

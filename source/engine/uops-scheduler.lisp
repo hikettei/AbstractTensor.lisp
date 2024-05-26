@@ -75,7 +75,7 @@
 				     (when (and
 					    (= (length values) 1)
 					    (uop-alu-p (car values))
-					    (eql :muladd (uop-alu-op-type (car values))))
+					    (eql :wmma (uop-alu-op-type (car values))))
 				       ;; :muladd is used as an accumlation?
 				       ;; e.g.: C = A * B + C
 				       (multiple-value-bind (a b c)
@@ -335,7 +335,7 @@ for (int i=0;i<3;i+=2) {
 	     ;; _rem_n_16 = n-loopsize-idx // unroll-by
 	     (n-reminder-alu (make-uop-alu :x-writes (list n-reminder-idx) :x-reads `(,loopsize-buffer ,unroll-by) :op-type :floordiv :dtype :int))
 	     ;; _frm_n_16 = 16 * _n_rem_n_16 + offset
-	     (n-frm-size     (make-uop-alu :x-writes (list n-frm-idx) :x-reads `(,unroll-by ,n-reminder-idx ,(range-from old-range)) :op-type :muladd :dtype :int))
+	     (n-frm-size     (make-uop-alu :x-writes (list n-frm-idx) :x-reads `(,unroll-by ,n-reminder-idx ,(range-from old-range)) :op-type :wmma :dtype :int))
 	     (reminder-range
 	       (if loop-fixed?
 		   ;; If the range of iter is fixed (i.e.: to/from/by is a number)

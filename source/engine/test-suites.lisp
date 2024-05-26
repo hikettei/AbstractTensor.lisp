@@ -31,5 +31,6 @@
       (flet ((find-alu (key)
 	       (find key new :key #'(lambda (x) (if (aten/engine::uop-alu-p x) (aten/engine::uop-alu-op-type x) nil)))))
 	(ok
-	 (and (find-alu :muladd) (not (find-alu :+)) (not (find-alu :*)))))))
+	 (and (find-alu :wmma) (not (find-alu :+)) (not (find-alu :*)))))))
 
+;; [MEMO] cl-waffe2と同じで，HW-Independentにテストを記述する

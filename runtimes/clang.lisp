@@ -154,7 +154,7 @@
        (:float
 	(cond
 	  (*arm-neon-p* )))))
-    (:muladd
+    (:wmma
      (ecase dtype
        (:double)
        (:float)))))
@@ -254,7 +254,7 @@
      ((x-writes x-reads op-type dtype reduction)
       (let ((simd-p (some #'aten/engine::packed-buffer-p x-reads)))
 	(cond
-	  ((eql op-type :muladd)
+	  ((eql op-type :wmma)
 	   ;; out = A * B + C;
 	   (format stream "~a~a~a = ~a * ~a + ~a;~%"
 		   (indent)
