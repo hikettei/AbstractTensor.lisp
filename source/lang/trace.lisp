@@ -133,7 +133,7 @@
 	      (op
 		(aten/engine:make-uop-alu
 		 :x-writes
-		 (list "")
+		 (list "non_determined")
 		 :x-reads
 		 (loop for arg in args
 		       append (list (aten/engine:uop->buffer (car (last arg)))))
@@ -145,7 +145,9 @@
 		(prog1
 		    (list alu)
 		  (incf (counter-alu counter)))))
-	 (setf (aten/engine::uop-alu-x-writes op1) alu-idx)
+	 (setf
+	  (aten/engine::uop-alu-x-writes op)  alu-idx 
+	  (aten/engine::uop-alu-x-writes op1) alu-idx)
 	 (or (read-cache op)
 	     (progn
 	       (cache op (list op1) dtype)
