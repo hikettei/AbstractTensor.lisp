@@ -162,7 +162,6 @@ This is the top-level function for compiling UOps. Based on the compilation deta
   ;; 1. Creates the UOpGraph Object.
   (let* ((graph  (make-uopgraph uops)))
     ;; 2. Applies the first (user-defined) simplification process.
-    
     ;; See also: [./uops-simplifier.lisp]
     ;; Applies the simplifiers defined by `define-simplifier` macros.
     ;; e.g.: Constant Propagate, removes an isolated graph, op fusion if possible.

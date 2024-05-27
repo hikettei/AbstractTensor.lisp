@@ -1,0 +1,23 @@
+[composite]
+documentation = "Im2Col"
+name = "Im2Col"
+inputs = ["X{Float}[N C H W]<0 1 2 3>()", "Col{Float}[N C k_h k_w h_out w_out]<0 1 2 3 4 5>()", "DILATION_H{Int}[]<>()", "STRIDE_H{Int}[]<>()", "STRIDE_W{Int}[]<>()", "DILATION_W{Int}[]<>()", "PAD_H{Int}[]<>()", "PAD_W{Int}[]<>()"]
+
+outputs = ["Col"]
+# read -> https://arxiv.org/pdf/2005.04091
+[implementation]
+code = """
+(dotimes (batch_n N)
+  (dotimes (h_start K_H)
+    (set h_end (+ (* dilation_h h_start) (- pad_h) (* stride_h H_out)))
+    (dotimes (w_start K_W)
+      (set w_end (+ (* dilation_w w_start) (- pad_w) (* stride_w W_out)))
+      (set H_out_col 0)
+      (loop (H_out_im h_start h_end stride_h)
+        (incf H_out_col 1)
+        (set W_out_col 0)
+        (loop (W_out_im w_start w_end stride_w)
+        (incf W_out_col 1)
+        (dotimes (cth C)
+          (setf (aref col batch_n cth h_start w_start H_out_col W_out_col) (aref X batch_n cth H_out_im W_out_im))))))))
+"""

@@ -151,6 +151,9 @@ And body:
 	       where-to-writes))))
 
       (when (and who-depends-on-load? (some #'(lambda (x) x) who-depends-on-load?))->failed)
+      ;; Only buffers started with _ is the subject to pruned
+      ;; otherwise this simplifier removes user-defined variables.
+      (when (not (string= "_" (aref (uop-load-x1 load) 0)))->failed)
       (with-debug-level (3)
 	(format t "[Simplifier] Purged: ~a~%" load))
       (cdr uops))))

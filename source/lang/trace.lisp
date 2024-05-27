@@ -203,14 +203,6 @@
 	     (what (explore what)))
 	 (setf (gethash to scope) (cons to (infer-dtype-from-uop (car (last what)))))
 	 `(,@what
-	   ,(aten/engine:make-uop-declare-var
-	     :var to
-	     :dtype (infer-dtype-from-uop (car (last what)))
-	     ;; [TODO] Inferencing pointer-p
-	     :pointer-p
-	     (progn
-	       (warn "[WIP] (set to what) assumes `what` to be scalar.: ~a" form)
-	       nil))
 	   ,(aten/engine:make-uop-load
 	     :x1 to
 	     :x2 (aten/engine:uop->buffer (car (last what)))))))
