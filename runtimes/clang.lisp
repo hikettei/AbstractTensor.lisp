@@ -28,7 +28,8 @@
 
 ;; ~~ Compilation Options ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-(defparameter *headers* "")
+(defparameter *headers* "#include <math.h>
+")
 (defparameter *sleef-p* nil)
 (defparameter *omp-p*   nil)
 (defparameter *arm-neon-p* nil)
@@ -285,6 +286,23 @@
 			     for arg-buff = (->buffer arg)
 			     append
 			     (list arg-buff (format nil "~a" op-c))))))))
+	  ((find op-type '(:sin :exp))
+	   ;; Arithmetic
+	   (let ((op-c (case op-type
+			 (T op-type))))
+	     (format stream "~a~a ~a = ~(~a~)(~a);~%"
+		     (indent)
+		     (cName dtype)
+		     (->buffer (car x-writes))
+		     op-c
+		     (apply
+		      #'concatenate
+		      'string
+		      (butlast
+		       (loop for arg in x-reads
+			     for arg-buff = (->buffer arg)
+			     append
+			     (list arg-buff ",")))))))
 	  (T
 	   (case op-type
 	     (T

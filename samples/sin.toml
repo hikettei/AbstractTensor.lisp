@@ -3,12 +3,11 @@ documentation = """
 Sin
 """
 name = "Sin"
-inputs = ["A{T}[i j]<1 0>()", "B{T}[i j]<1 0>()"]
+inputs = ["A{Float}[N]<0>()", "B{Float}[N]<0>()"]
 outputs = ["B"]
 
 [implementation]
 code = """
-(dotimes (i1 256)
-    (dotimes (j1 256)
-        (setf (aref a i1 j1) (+ 1.0 (aref b i1 j1)))))
+(dotimes (i N)
+    (setf (aref B i) (sin (aref A i))))
 """

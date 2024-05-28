@@ -131,6 +131,14 @@
   ;; e.g.: removes a loop where total_size=1
   )
 
+(defun get-nth-loop (uops nth)
+  (loop with c = 0
+	for u in uops
+	if (uop-loop-p u)
+	  do (when (= c nth)
+	       (return-from get-nth-loop u))
+	     (incf c)))
+
 (defparameter *loop-unrolling-stride* 4) ;; [WIP]
 (defun uops-optimize (uops)
   "## [function] uop-optimize
@@ -188,6 +196,7 @@ This is the top-level function for compiling UOps. Based on the compilation deta
       ;;  -> First, unroll the loops as many as possible
       (when (or (eql strategy :unroll) (eql strategy :vector))
 	(let* ((scope-type (runtimeconfig-scoping-type *runtime*))
+	       (simd-table (make-hash-table :test #'equalp))
 	       (loops (loop with depth = 0
 		            for uop in (uopgraph-uops graph)
 			    if (uop-loop-p uop)
@@ -199,7 +208,13 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 			      do (decf depth)))
 	       (simd-axes (when (eql strategy :vector)
 			    (loop for (depth . range) in loops
-				  collect (%uopgraph-blocksize graph (range-id (uop-loop-iters range)))))))
+				  for size = (%uopgraph-blocksize graph (range-id (uop-loop-iters range)))
+				  collect
+				  (progn
+				    (setf (gethash (get-nth-loop uops depth) simd-table) size)
+				    size)))))
+	  ;; simd-axes ... (loop1 loop2 loop3 ...)
+	  ;; the length of simd-axes is not always corresponds with the rank of tensors.
 	  (loop for (depth . range) in loops
 		for nth upfrom 0
 		for blocksize = (if (eql strategy :unroll)
@@ -210,9 +225,8 @@ This is the top-level function for compiling UOps. Based on the compilation deta
 	  ;; If strategy is :vector, replace unrolled ALU with vectorized ALU.
 	  (when (eql strategy :vector)
 	    ;; Apply vectorization
-
-	    ))))
-    
+	    (%uopgraph-simplify graph)
+	    (%vectorize-uops graph simd-table)))))
 
     (%uopgraph-simplify graph)
     ;; 8. It's all! returns the optimized UOpGraph structure.

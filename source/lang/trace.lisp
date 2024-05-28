@@ -122,47 +122,6 @@
       ;; (- a) -> -a
       ((list '- form1)
        (explore `(* -1 ,form1)))
-      
-      ;; arithmetic
-      ((list* (or '+ '- '* '/ '> '>= '< '<= '=) _)
-       (let* ((car  (car form))
-	      (args (map 'list #'explore (cdr form)))
-	      (alu (read-counter counter 'alu))
-	      (dtype
- 		(let ((buffer (car (last (car args)))))
-		  (typecase buffer
-		    (aten/engine::UOp-Load
-		     (aten/engine:infer-buffer-type
-		      (aten/engine::uop-load-x2
-		       buffer)))
-		    (aten/engine::UOp-ALU
-		     (aten/engine::uop-alu-dtype buffer))
-		    (T
-		     (error "Cannot infer the type when tracing the graph: ~a" buffer)))))
-	      (op
-		(aten/engine:make-uop-alu
-		 :x-writes
-		 (list "")
-		 :x-reads
-		 (loop for arg in args
-		       append (list (aten/engine:uop->buffer (car (last arg)))))
-		 :op-type (intern (symbol-name car) "KEYWORD")
-		 ;; Asserting that all dtypes are the same.
-		 :dtype dtype))
-	      (op1 (aten/engine::copy-uop-alu op))
-	      (alu-idx 
-		(prog1
-		    (list alu)
-		  (incf (counter-alu counter)))))
-	 (setf
-	  ;;(aten/engine::uop-alu-x-writes op)  alu-idx 
-	  (aten/engine::uop-alu-x-writes op1) alu-idx
-	  )
-	 (or (read-cache op)
-	     (progn
-	       (cache op (list op1) dtype)
-	       (setf (gethash alu scope) (cons op dtype))
-	       `(,@(apply #'append args) ,op1)))))
 
       ;; A = B, A+=B, A-=B, A*=B, A/=B
       ((list (or 'incf 'decf 'mulcf 'divcf) form1)
@@ -249,10 +208,47 @@
 	  index-uops
 	  (list op))))
 
-      ;; funcall. (car cdr)
+      ;; funcall
       ((list* (type symbol) _)
-       (error "not ready: funcall ~a" form)
-       )
+       (let* ((car  (car form))
+	      (args (map 'list #'explore (cdr form)))
+	      (alu (read-counter counter 'alu))
+	      (dtype
+ 		(let ((buffer (car (last (car args)))))
+		  (typecase buffer
+		    (aten/engine::UOp-Load
+		     (aten/engine:infer-buffer-type
+		      (aten/engine::uop-load-x2
+		       buffer)))
+		    (aten/engine::UOp-ALU
+		     (aten/engine::uop-alu-dtype buffer))
+		    (T
+		     (error "Cannot infer the type when tracing the graph: ~a" buffer)))))
+	      (op
+		(aten/engine:make-uop-alu
+		 :x-writes
+		 (list "")
+		 :x-reads
+		 (loop for arg in args
+		       append (list (aten/engine:uop->buffer (car (last arg)))))
+		 :op-type (intern (symbol-name car) "KEYWORD")
+		 ;; Asserting that all dtypes are the same.
+		 :dtype dtype))
+	      (op1 (aten/engine::copy-uop-alu op))
+	      (alu-idx 
+		(prog1
+		    (list alu)
+		  (incf (counter-alu counter)))))
+	 (setf
+	  ;;(aten/engine::uop-alu-x-writes op)  alu-idx 
+	  (aten/engine::uop-alu-x-writes op1) alu-idx
+	  )
+	 (or (read-cache op)
+	     (progn
+	       (cache op (list op1) dtype)
+	       (setf (gethash alu scope) (cons op dtype))
+	       `(,@(apply #'append args) ,op1)))))
+      
       ;; number
       ((type number)
        (or

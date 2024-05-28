@@ -21,6 +21,7 @@
      :wmma
 
      ;; Mathematical Functions (WIP)
+     :sin
      :exp     
      )))
 
