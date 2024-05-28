@@ -353,7 +353,6 @@ And body:
 				       ,@(loop for x in new-args
 					       if (not (numberp arg)) collect x))))
 			  new-args)))
-       (print new-args)
        (cond
 	 ((and (every #'numberp new-args) (= (length new-args) 1))
 	  (loop with type = (if (uop-load-p (car ys))
@@ -386,23 +385,6 @@ And body:
 	       :x-reads new-args
 	       :op-type :wmma
 	       :dtype (uop-alu-dtype alu))))))
-	 ((= (length new-args) 1)
-	  (if (find (uop-alu-op-type alu) `(:+ :*))
-	      (loop for x-write in (uop-alu-x-writes alu)
-		    collect
-		    (make-uop-load
-		     :x1 x-write
-		     ;; (The code is suck but) note that this line corresponds with (1)
-		     ;; If you allow another buffer to pass at (1)
-		     ;; This line also needs to be changed.
-		     :x2 (cond
-			   ((aref-buffer-p (car new-args)) (car new-args))
-			   (T
-			    (make-const-buffer
-			     :value (car new-args)
-			     :type  (uop-alu-dtype alu)
-			     :pointer-p nil)))))
-	      nil))
 	 (T
 	  (list
 	   (make-uop-alu
