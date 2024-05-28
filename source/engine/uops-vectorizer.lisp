@@ -20,6 +20,7 @@
       (string= prefix (subseq name 0 (length prefix)))
       nil))
 
+;; TODO Update
 (defun vectorize-uops (uops-full uops simd-idx n-pack &aux (seen (list simd-idx)))
   (labels ((->unroll-idx (name nth)
 	     (if (equal (aref name 0) #\_)
@@ -253,60 +254,58 @@
 	      else
 		collect op))))))
 
-(defun %uopgraph-vectorize (graph idx scoping-type)
+(defun %uopgraph-blocksize (graph idx)
   "Attempts to vectorize the UOp codes"
   (declare (type UOpGraph graph))
+  (symbol-macrolet ((->failed `(return-from %uopgraph-blocksize nil)))
+    (macrolet ((try (condition message &rest more)
+		 `(unless ,condition (progn (with-debug-level (3) (warn ,message ,@more)) (return-from %uopgraph-blocksize)))))
+      (unless (eql :vector (runtimeconfig-vectorize-strategy *runtime*))->failed)
+      (try (runtimeconfig-simd-len *runtime*) "Failed to simdify the graphh because the current *runtime* does not provide :SIMD_LEN: ~a" *runtime*)
+      (try (eql (runtimeconfig-indexing-rule *runtime*) :flatten) "Failed to vectorize: indexing-rule must be set to :flatten to use a vectorization.")
+      
+      ;; Before we start a vectorization step, we need to confirm that tensors used inside the loop really have the same dtypes.
+      ;; Otherwise, we cannot assert that all tensors are unrolled by the same number, failing to pack/unpack to simd register.
 
-  (assert (eql :vector (runtimeconfig-vectorize-strategy *runtime*)) () "%uops-vectorize is dedicated to a vector computor.")
-  (assert (runtimeconfig-simd-len *runtime*) () "Failed to simdify the graph because
-the current *runtime* do not know the number of SIMD_LEN: ~a" *runtime*)  
-  (assert (eql (runtimeconfig-indexing-rule *runtime*) :flatten)
-	  ()
-	  "Assertion failed: [vectorize-uops] indexing-rule must be :flatten to apply SIMDify")
+      (let ((loop-body (slice-loop-entity (uopgraph-uops graph) idx))
+	    (found-dtypes))
+	(dolist (op loop-body)
+	  ;; [TODO] More UOps to check?
+	  (typecase op
+	    (UOp-Load
+	     (with-slots ((x2 x2)) op
+	       (when (packed-buffer-p x2)
+		 (push (packed-buffer-dtype x2) found-dtypes))
+	       (when (aref-buffer-p x2)
+		 (push (aten/ir:aten-type-class (aref-buffer-name x2)) found-dtypes))))
+	    (UOp-Store
+	     (with-slots ((x1 x1)) op
+	       (when (packed-buffer-p x1)
+		 (push (packed-buffer-dtype x1) found-dtypes))
+	       (when (aref-buffer-p x1)
+		 (push (aten/ir:aten-type-class (aref-buffer-name x1)) found-dtypes))))
+	    (UOp-ALU
+	     (with-slots ((x-reads x-reads) (x-writes x-writes)) op
+	       (dolist (x `(,@x-reads ,@x-writes))	     
+		 (when (packed-buffer-p x)
+		   (push (packed-buffer-dtype x) found-dtypes))
+		 (when (aref-buffer-p x)
+		   (push (aten/ir:aten-type-class (aref-buffer-name x)) found-dtypes)))))))
+	(setf found-dtypes (remove-duplicates found-dtypes)
+	      found-dtypes (loop for dtype in found-dtypes
+				 if (not (eql dtype :int))
+				   collect dtype)
+	      found-dtypes (or found-dtypes `(:int))) ;; If found-dtypes=nil -> the iteration is dedicated to :int arrays.
+	(when (not
+	       (and (car found-dtypes)
+		    (every #'(lambda (x) (eql (car found-dtypes) x)) found-dtypes)))
+	  (with-debug-level (2)
+	    (warn "%uops-vectorize: To vectorize uops with idx=~a, these tensors must be declared to have the same dtypes. ~%~a~%Proceeds with ignoring this vectorization." idx found-dtypes))
+	  ->failed)
 
-  
-  ;; Before we start a vectorization step, we need to confirm that tensors used inside the loop really have the same dtypes.
-  ;; Otherwise, we cannot assert that all tensors are unrolled by the same number, failing to pack/unpack to simd register.
-
-  (let ((loop-body (slice-loop-entity (uopgraph-uops graph) idx))
-	(found-dtypes))
-    (dolist (op loop-body)
-      ;; [TODO] More UOps to check?
-      (typecase op
-	(UOp-Load
-	 (with-slots ((x2 x2)) op
-	   (when (packed-buffer-p x2)
-	     (push (packed-buffer-dtype x2) found-dtypes))
-	   (when (aref-buffer-p x2)
-	     (push (aten/ir:aten-type-class (aref-buffer-name x2)) found-dtypes))))
-	(UOp-Store
-	 (with-slots ((x1 x1)) op
-	   (when (packed-buffer-p x1)
-	     (push (packed-buffer-dtype x1) found-dtypes))
-	   (when (aref-buffer-p x1)
-	     (push (aten/ir:aten-type-class (aref-buffer-name x1)) found-dtypes))))
-	(UOp-ALU
-	 (with-slots ((x-reads x-reads) (x-writes x-writes)) op
-	   (dolist (x `(,@x-reads ,@x-writes))	     
-	     (when (packed-buffer-p x)
-	       (push (packed-buffer-dtype x) found-dtypes))
-	     (when (aref-buffer-p x)
-	       (push (aten/ir:aten-type-class (aref-buffer-name x)) found-dtypes)))))))
-    (setf found-dtypes (remove-duplicates found-dtypes)
-	  found-dtypes (loop for dtype in found-dtypes
-			     if (not (eql dtype :int))
-			       collect dtype)
-	  found-dtypes (or found-dtypes `(:int))) ;; If found-dtypes=nil -> the iteration is dedicated to :int arrays.
-    (when (not
-	   (and (car found-dtypes)
-		(every #'(lambda (x) (eql (car found-dtypes) x)) found-dtypes)))
-      (with-debug-level (2)
-	(warn "%uops-vectorize: To vectorize uops with idx=~a, these tensors must be declared to have the same dtypes. ~%~a~%Proceeds with ignoring this vectorization." idx found-dtypes))
-      (return-from %uopgraph-vectorize nil))
-
-    ;; Rewriting LOAD/STORE/ALU using %uopgraph-unroll
-    (let ((blocksize (/ (runtimeconfig-simd-len *runtime*) (dtype-size (car found-dtypes)))))
-      (assert (integerp blocksize) () "Assertion Failed with: (/ SIMD_LEN Dtype_Size) == Integer. butgot =~a" blocksize) 
-      (%uopgraph-unroll graph idx blocksize scoping-type :unroller #'vectorize-uops))))
+	;; Rewriting LOAD/STORE/ALU using %uopgraph-unroll
+	(let ((blocksize (/ (runtimeconfig-simd-len *runtime*) (dtype-size (car found-dtypes)))))
+	  (try (integerp blocksize) "Failed to vectorize the loop because it will not satisfies (/ SIMD_LEN Dtype_Size) == Integer. butgot =~a" blocksize) 
+	  blocksize)))))
 
 

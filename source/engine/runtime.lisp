@@ -45,6 +45,7 @@ See also: `declare-runtime`
         - :disable to ignore the parallelization optimization process.
         - :vector  to use CPU and SIMD.
         - :scalar  to use GPU.
+        - :unroll  to only apply loop-unrolling[WIP]
 
 - simd-len[fixnum]
     - If vectorize-strategy=:vector is selected, specify here the size of simd register.
@@ -59,7 +60,7 @@ See also: `declare-runtime`
   (debug debug :type (integer 0 4))
 
   ;; Parallelization
-  (vectorize-strategy vectorize-strategy :type (and keyword (member :disabled :vector :scalar)))
+  (vectorize-strategy vectorize-strategy :type (and keyword (member :disabled :vector :scalar :unroll)))
 
   ;; Configs for Vector Computor
   (simd-len simd-len :type fixnum)

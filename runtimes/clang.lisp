@@ -14,7 +14,7 @@
  :clang
  :indexing-rule      :flatten
  :scoping-type       :static
- :vectorize-strategy :disabled
+ :vectorize-strategy :vector
  )
 
 ;; Memo https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiesreturnbasetype=[int]&f:@navigationhierarchieselementbitsize=[64]&f:@navigationhierarchiessimdisa=[Neon]&q=vld1q_s64
@@ -96,10 +96,10 @@
 
     ;; Allows vectorization
     (when (or *sleef-p* *arm-neon-p*)
-      (when  *simd-len*
-	(error "Cannot enable auto vectorization because SIMD_LEN is not declared.")
-	(setf (aten/engine::runtimeconfig-vectorize-strategy aten/engine::*runtime*) :vector)
-	(set-simd-id *simd-len*)))))
+      (when  (null *simd-len*)
+	(error "Cannot enable auto vectorization because SIMD_LEN is not declared."))
+      (setf (aten/engine::runtimeconfig-vectorize-strategy aten/engine::*runtime*) :vector)
+      (set-simd-id *simd-len*))))
 
 ;; ~~ SIMD Utils ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

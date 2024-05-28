@@ -131,7 +131,7 @@
   ;; e.g.: removes a loop where total_size=1
   )
 
-
+(defparameter *loop-unrolling-stride* 4) ;; [WIP]
 (defun uops-optimize (uops)
   "## [function] uop-optimize
 
@@ -176,43 +176,43 @@ This is the top-level function for compiling UOps. Based on the compilation deta
     (%uopgraph-optimize-accumlation graph)
     
     ;; 7. Parallelize
-    (case (runtimeconfig-vectorize-strategy *runtime*)
-      (:disabled ;; :disabled
-       (let* ((scope-type (runtimeconfig-scoping-type *runtime*))
-	      (loops (loop with depth = 0
-		           for uop in (uopgraph-uops graph)
-			   if (uop-loop-p uop)
-			     collect
-			     (prog1
-				 (cons depth uop)
-			       (incf depth))
-			   if (uop-endloop-p uop)
-			     do (decf depth))))
-	 (loop for (depth . range) in loops do
-	   (%uopgraph-unroll graph (range-id (uop-loop-iters range)) 4 scope-type))))
-      (:vector
-       
-       ;; Memo: Row-MajorならInnnerMost/ColumnならOutmostでSIMDにPackする。?
-       (let* ((scope-type (runtimeconfig-scoping-type *runtime*))
-	      (loops (loop with depth = 0
-		           for uop in (uopgraph-uops graph)
-			   if (uop-loop-p uop)
-			     collect
-			     (prog1
-				 (cons depth uop)
-			       (incf depth))
-			   if (uop-endloop-p uop)
-			     do (decf depth)))
-	      ;;(deepest (apply #'max (map 'list #'car loops)))
-	      )
-	 ;; [TODO] Implement auto scheduler to determine the number of unrolling number.
-	 ;; [TODO] Unroll simdfied Iterations
-	 (loop for (depth . range) in (list (nth 0 loops) (nth 1 loops)) do
-	   ;; Attempts to vectorize
-	   (%uopgraph-vectorize graph (range-id (uop-loop-iters range)) scope-type))))
-      (:scalar
-       (warn "strategy=scalar is not ready!")
-       nil))
+
+    ;; 1. :Unrollをする Failed -> Warning
+    ;; 2. :ALU_0_4とかをHashTableにまとめておいて，後でGatherする
+    (let ((strategy (runtimeconfig-vectorize-strategy *runtime*)))
+
+      (when (eql strategy :scalar)
+	(warn "strategy=:scalar is WIP."))
+
+      ;; strategy is unroll or vector
+      ;;  -> First, unroll the loops as many as possible
+      (when (or (eql strategy :unroll) (eql strategy :vector))
+	(let* ((scope-type (runtimeconfig-scoping-type *runtime*))
+	       (loops (loop with depth = 0
+		            for uop in (uopgraph-uops graph)
+			    if (uop-loop-p uop)
+			      collect
+			      (prog1
+				  (cons depth uop)
+				(incf depth))
+			    if (uop-endloop-p uop)
+			      do (decf depth)))
+	       (simd-axes (when (eql strategy :vector)
+			    (loop for (depth . range) in loops
+				  collect (%uopgraph-blocksize graph (range-id (uop-loop-iters range)))))))
+	  (loop for (depth . range) in loops
+		for nth upfrom 0
+		for blocksize = (if (eql strategy :unroll)
+				    *loop-unrolling-stride*
+				    (or (nth nth simd-axes) *loop-unrolling-stride*))
+		do (%uopgraph-unroll graph (range-id (uop-loop-iters range)) blocksize scope-type))
+
+	  ;; If strategy is :vector, replace unrolled ALU with vectorized ALU.
+	  (when (eql strategy :vector)
+	    ;; Apply vectorization
+
+	    ))))
+    
 
     (%uopgraph-simplify graph)
     ;; 8. It's all! returns the optimized UOpGraph structure.

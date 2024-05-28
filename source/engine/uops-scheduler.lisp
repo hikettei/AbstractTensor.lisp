@@ -169,22 +169,25 @@
 		  "Assertion failed")
 	  (values sliced start end))))))
 
-(defun unroll-uops (uops-full uops unroll-idx unroll-by &aux (seen (list unroll-idx)))
+(defun unroll-uops (graph uops unroll-idx unroll-by &aux (seen (list unroll-idx)) (unrolled))
   "
 for (int i=0;i<3;i+=2) {
     int k = i;            | <- unroll-uops this area as an `uops`
     ...                   | <- rewriting each ops as unrolled ops
 }
 "
-  (declare (ignore uops-full))
   ;; [TODO] Unroll
   ;; Load -> Unroll
   ;; ALU -> Unroll
   ;; etc
   (labels ((->unroll-idx (name nth)
-	     (if (equal (aref name 0) #\_)
-		 (format nil "~a_~a" name nth)
-		 (format nil "_~a_~a" name nth)))
+	     (let ((unrolled-name
+		     (if (equal (aref name 0) #\_)
+			 (format nil "~a_~a" name nth)
+			 (format nil "_~a_~a" name nth))))
+	       ;; graph(id_from, id_to, value)
+	       (push (cons name (cons unrolled-name nth)) unrolled)
+	       unrolled-name))
 	   (to-unroll? (uop)
 	     (intersection seen (uop-reads uop) :test #'equal))
 	   (unroll-buffer? (name)
@@ -213,80 +216,85 @@ for (int i=0;i<3;i+=2) {
 				   x))
 			   idx))))
 		 buffer)))
-    
-    (alexandria:flatten
-     (list
-      (loop for nth upfrom 0 below unroll-by
-	    collect
-	    (make-uop-alu
-	     :x-writes (list (->unroll-idx unroll-idx nth))
-	     :x-reads  (list unroll-idx nth)
-	     :op-type :+
-	     :dtype   :int))
-      (loop for op in uops
-	    if (to-unroll? op)
-	      collect
-	      (typecase op
-		(UOp-Load
-		 ;; int val_0 = i;
-		 ;; ->
-		 ;; int val_0_1 = i+0;
-		 ;; int val_0_2 = i+1;
-		 ;;       ...
-		 (push (uop-load-x1 op) seen)
-		 (loop for nth upfrom 0 below unroll-by
-		       if (equal (uop-load-reduction op) unroll-idx)
-			 collect op
-		       else
-			 collect
-			 (make-uop-load
-			  :x1 (unroll-buffer (uop-load-x1 op) nth)
-			  :x2 (unroll-buffer (uop-load-x2 op) nth)
-			  :reduction (uop-load-reduction op))))
-		(UOp-Store
-		 (loop for nth upfrom 0 below unroll-by
-		       if (equal (uop-store-reduction op) unroll-idx)
-			 collect op
-		       else
-			 collect
-			 (make-uop-store
-			  :x1 (unroll-buffer (uop-store-x1 op) nth)
-			  :x2 (unroll-buffer (uop-store-x2 op) nth)
-			  :reduction (uop-store-reduction op))))
-		(UOp-ALU
-		 (dolist (w (uop-alu-x-writes op))
-		   (push w seen))
-		 (loop with writes = (uop-alu-x-writes op)
-		       with reduction-p = (equal unroll-idx (uop-alu-reduction op))
-		       for nth upfrom 0 below unroll-by
-		       collect
-		       (make-uop-alu
-			:x-writes (if (equal unroll-idx (uop-alu-reduction op))
-				      (uop-alu-x-writes op)
-				      (map 'list #'(lambda (x) (unroll-buffer x nth)) (uop-alu-x-writes op)))
-			:x-reads  (map
-				   'list
-				   #'(lambda (x)
-				       (if (and reduction-p (find x writes :test #'equal))
-					   x
-					   (unroll-buffer x nth)))
-				   (uop-alu-x-reads  op))
-			:op-type  (uop-alu-op-type op)
-			:dtype    (uop-alu-dtype op)
-			:reduction (uop-alu-reduction op))))
-		(UOp-Loop
-		 (progn;;let ((loop-subbody (slice-loop-entity uops (range-id (uop-loop-iters op)))))
-		   ;; TODO
-		   ;; ループごと繰り返すように実装したい。(がテストするのがめんどくさい) Conv実装する時にでも。。。
-		   (error "not ready! UOp-Loop[Unroll]")
-		   ))
-		(T
-		 (error "unroll-uops: add the case for unrolling ~a" op)
-		 op))
-	    else
-	      collect op)))))
+    (prog1
+	(alexandria:flatten
+	 (list
+	  (loop for nth upfrom 0 below unroll-by
+		collect
+		(make-uop-alu
+		 :x-writes (list (->unroll-idx unroll-idx nth))
+		 :x-reads  (list unroll-idx nth)
+		 :op-type :+
+		 :dtype   :int))
+	  (loop for op in uops
+		if (to-unroll? op)
+		  collect
+		  (typecase op
+		    (UOp-Load
+		     ;; int val_0 = i;
+		     ;; ->
+		     ;; int val_0_1 = i+0;
+		     ;; int val_0_2 = i+1;
+		     ;;       ...
+		     (push (uop-load-x1 op) seen)
+		     (loop for nth upfrom 0 below unroll-by
+			   if (equal (uop-load-reduction op) unroll-idx)
+			     collect op
+			   else
+			     collect
+			     (make-uop-load
+			      :x1 (unroll-buffer (uop-load-x1 op) nth)
+			      :x2 (unroll-buffer (uop-load-x2 op) nth)
+			      :reduction (uop-load-reduction op))))
+		    (UOp-Store
+		     (loop for nth upfrom 0 below unroll-by
+			   if (equal (uop-store-reduction op) unroll-idx)
+			     collect op
+			   else
+			     collect
+			     (make-uop-store
+			      :x1 (unroll-buffer (uop-store-x1 op) nth)
+			      :x2 (unroll-buffer (uop-store-x2 op) nth)
+			      :reduction (uop-store-reduction op))))
+		    (UOp-ALU
+		     (dolist (w (uop-alu-x-writes op))
+		       (push w seen))
+		     (loop with writes = (uop-alu-x-writes op)
+			   with reduction-p = (equal unroll-idx (uop-alu-reduction op))
+			   for nth upfrom 0 below unroll-by
+			   collect
+			   (make-uop-alu
+			    :x-writes (if (equal unroll-idx (uop-alu-reduction op))
+					  (uop-alu-x-writes op)
+					  (map 'list #'(lambda (x) (unroll-buffer x nth)) (uop-alu-x-writes op)))
+			    :x-reads  (map
+				       'list
+				       #'(lambda (x)
+					   (if (and reduction-p (find x writes :test #'equal))
+					       x
+					       (unroll-buffer x nth)))
+				       (uop-alu-x-reads  op))
+			    :op-type  (uop-alu-op-type op)
+			    :dtype    (uop-alu-dtype op)
+			    :reduction (uop-alu-reduction op))))
+		    (UOp-Loop
+		     (progn
+		       (with-debug-level (3)
+			 (warn "unroll-uop: failed unroll uop [UOp-Loop]"))
+		       (return-from unroll-uops)))
+		    (T
+		     (with-debug-level (3)
+		       (warn "unroll-uops: add the case for unrolling ~a" op))
+		     (return-from unroll-uops)))
+		else
+		  collect op)))
+      ;; If succeed to unrolling, register all the unrolled buffers.
+      (loop for (id . (to . nth)) in unrolled do
+	(%uopgraph-set-unrolled-buffer graph id to nth)))))
 
 (defun %uopgraph-unroll (graph idx unroll-by scope-type &key (unroller #'unroll-uops))
+  "Applies the loop-unroll optimization to the idx.
+If failed, the function returns nil. If succeed, return T."
   (declare (type UOpGraph graph)
 	   (type string idx)
 	   (type fixnum unroll-by)
@@ -393,7 +401,13 @@ for (int i=0;i<3;i+=2) {
 		  (setf (range-from new-range) (range-id new-range))
 		  (list (make-uop-load :x1 (range-id old-range) :x2 (make-const-buffer :value (range-from old-range) :type :int))))
 		(list (make-uop-loop :iters new-range))
-		(funcall unroller (uopgraph-uops graph) (cdr (butlast loop-body)) (range-id old-range) unroll-by)
+		(or (funcall unroller graph (cdr (butlast loop-body)) (range-id old-range) unroll-by)
+		    ;; When unroller returned NIL
+		    ;;  -> Unrolling process was failed.
+		    (progn
+		      (with-debug-level (3)
+			(warn "unroll-uops: Failed to unroll the loop ~a" idx))
+		      (return-from %uopgraph-unroll nil)))
 		(list (make-uop-endloop :iters new-range))))
 	     (new-loop-body `(,@unrolled-loop-body ,@loop-reminder))
 	     ;; Replace the existing loop with unrolled loop
@@ -406,5 +420,6 @@ for (int i=0;i<3;i+=2) {
 	;; [FixME]
 	;; With loop_reminder and scope=:static, it brokes the definition of non-circular of DAG.
 	;; That is, some assertion of simplifiers may broke?...
-	graph))))
+	;;graph
+	t))))
 

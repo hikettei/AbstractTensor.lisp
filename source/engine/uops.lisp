@@ -423,5 +423,25 @@ write <- read
 
 (defstruct (UOpGraph
 	    (:constructor make-uopgraph (uops)))
+  ;; e.g.: alu -> _alu_0_5
+  ;; unrolled_buffer = alu : (0 5)
+  (unrolled-buffer (make-hash-table :test #'equal) :type hash-table)
   (uops uops :type list))
 
+(defun %uopgraph-set-unrolled-buffer (graph id to nth)
+  (declare (type UOpGraph graph))
+  ;; ID -> (TO, NTH)
+  ;; Finding in this order <----
+  (setf (gethash to (uopgraph-unrolled-buffer graph)) (cons id nth)))
+
+(defun %uopgraph-buffer-unrolled? (graph id)
+  ;; Recursively finds the unrolled buffer.
+  (flet ((helper (x)
+	   (gethash x (uopgraph-unrolled-buffer graph))))
+    (reverse
+     (loop with tgt = id
+	   while (helper tgt)
+	   collect (let ((out (helper tgt)))
+		     ;; out = (id_from . nth)
+		     (setf tgt (car out))
+		     (cdr out))))))
