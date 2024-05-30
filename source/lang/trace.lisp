@@ -244,13 +244,13 @@
 	  ;;(aten/engine::uop-alu-x-writes op)  alu-idx 
 	  (aten/engine::uop-alu-x-writes op1) alu-idx
 	  )
-	 
-	 (or
-	  (read-cache op)	  
-	  (progn
-	    (cache op (list op1) dtype)
-	    (setf (gethash alu scope) (cons op1 dtype))
-	    `(,@(apply #'append args) ,op1)))))
+
+	 (if (read-cache op)
+	     `(,@(apply #'append args) ,@(read-cache op))
+	     (progn
+	       (cache op (list op1) dtype)
+	       (setf (gethash alu scope) (cons op1 dtype))
+	       `(,@(apply #'append args) ,op1)))))
       
       ;; number
       ((type number)
