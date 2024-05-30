@@ -9,14 +9,15 @@
 
 (cl:in-package :clang)
 
-;; Declares compilation strategy
-(aten/engine:declare-runtime
- :clang
- :indexing-rule      :flatten
- :scoping-type       :static
- :vectorize-strategy :vector
- )
-
+(defun set-clang-runtime ()
+  ;; Declares compilation strategy
+  (aten/engine:declare-runtime
+   :clang
+   :indexing-rule      :flatten
+   :scoping-type       :static
+   :vectorize-strategy :vector
+   ))
+(set-clang-runtime)
 ;; Memo https://developer.arm.com/architectures/instruction-sets/intrinsics/#f:@navigationhierarchiesreturnbasetype=[int]&f:@navigationhierarchieselementbitsize=[64]&f:@navigationhierarchiessimdisa=[Neon]&q=vld1q_s64
 
 ;; TODO: ArmNeonのSIMDの命令, レジスタサイズベースで自動生成

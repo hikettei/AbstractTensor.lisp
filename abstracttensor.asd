@@ -7,7 +7,10 @@
   ("abstracttensor.docs"
    "abstracttensor.ir"
    "abstracttensor.engine"
-   "abstracttensor.lang")
+   "abstracttensor.lang"
+   "cffi")
+  :components
+  ((:file "runtimes/clang"))
   :in-order-to
   ((test-op
     (asdf:test-op "abstracttensor.engine")
