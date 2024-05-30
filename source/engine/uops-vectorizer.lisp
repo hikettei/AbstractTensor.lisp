@@ -64,8 +64,8 @@
 		 (seen))
 	    (when (null key)->failed)
 	    (when (null value)->failed)
-	    (print key)
-	    (print value)
+	    ;; (print key)
+	    ;; (print value)
 	    
 	    ;; The earlier loop is sliced
 	    

@@ -209,6 +209,7 @@
 	  (list op))))
 
       ;; funcall
+      
       ((list* (type symbol) _)
        (let* ((car  (car form))
 	      (args (map 'list #'explore (cdr form)))
@@ -227,7 +228,7 @@
 	      (op
 		(aten/engine:make-uop-alu
 		 :x-writes
-		 (list "")
+		 (list "<broken_graph>")
 		 :x-reads
 		 (loop for arg in args
 		       append (list (aten/engine:uop->buffer (car (last arg)))))
@@ -243,11 +244,13 @@
 	  ;;(aten/engine::uop-alu-x-writes op)  alu-idx 
 	  (aten/engine::uop-alu-x-writes op1) alu-idx
 	  )
-	 (or (read-cache op)
-	     (progn
-	       (cache op (list op1) dtype)
-	       (setf (gethash alu scope) (cons op dtype))
-	       `(,@(apply #'append args) ,op1)))))
+	 
+	 (or
+	  (read-cache op)	  
+	  (progn
+	    (cache op (list op1) dtype)
+	    (setf (gethash alu scope) (cons op1 dtype))
+	    `(,@(apply #'append args) ,op1)))))
       
       ;; number
       ((type number)
