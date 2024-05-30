@@ -113,6 +113,7 @@
 
 
 ;; TODO Update
+
 (defun vectorize-uop (graph group-uop)
   (labels ((undo1 (name)
 	     (declare (type string name))
@@ -189,7 +190,7 @@
 	:reduction (uop-alu-reduction (car group-uop))))
       (T (error "vectorize: not implemented: ~a" (car group-uop))))))
 
-
+#|
 (defun vectorize-uops (uops-full uops simd-idx n-pack &aux (seen (list simd-idx)))
   (labels ((->unroll-idx (name nth)
 	     (if (equal (aref name 0) #\_)
@@ -422,6 +423,7 @@
 		   op))
 	      else
 		collect op))))))
+|#
 
 (defun %uopgraph-blocksize (graph idx)
   "Attempts to vectorize the UOp codes"
