@@ -330,28 +330,12 @@ And body:
 			 :packed ((packed-objects dtype) ->failed)
 			 :string ((value) (error "not tested this line yet") value)))
 		    if (uop-alu-p y-old)
-		      collect (car (uop-alu-x-writes y-old))))
+		      append (uop-alu-x-writes y-old)))
 	    (new-args (loop for x in new-args if x collect x))
 	    (new-args (if (every #'numberp new-args)
 			  (case (uop-alu-op-type alu)
 			    (:wmma (list (+ (* (nth 0 new-args) (nth 1 new-args)) (nth 2 new-args))))
 			    (T     (list (apply (intern (symbol-name (uop-alu-op-type alu))) new-args))))
-			  new-args))
-	    (new-args (if (and
-			   (find (uop-alu-op-type alu) `(:+ :*))
-			   (some #'numberp new-args))
-			  (loop named accumlator with stashed = nil
-				for arg in new-args
-				if (numberp arg) do
-				  (if (null stashed)
-				      (setf stashed arg)
-				      (setf stashed (funcall (intern (symbol-name (uop-alu-op-type alu))) stashed arg)))
-				finally
-				   (return-from
-				    accumlator
-				     `(,stashed
-				       ,@(loop for x in new-args
-					       if (not (numberp arg)) collect x))))
 			  new-args)))
        (cond
 	 ((and (every #'numberp new-args) (= (length new-args) 1))
@@ -396,7 +380,6 @@ And body:
 			      collect (or (uop->buffer arg) arg))
 	    :op-type (uop-alu-op-type alu)
 	    :dtype   (uop-alu-dtype alu))))))))
-
   )
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
