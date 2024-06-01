@@ -482,60 +482,69 @@ And body:
 	     (new-uops uops)
 	     (changed-p nil))
 	(when (null users)->failed)
-	(dolist (u users)
-	  (let ((replacement
-		  (typecase u
-		    (UOp-Load
-		     (when (not (equal (uop-load-x2 u) (uop-load-x2 load)))
-		       (setf changed-p t))
-		     (make-uop-load
-		      :x1 (uop-load-x1 u)
-		      :x2 (uop-load-x2 load)
-		      :reduction (uop-load-reduction u)))
-		    (UOp-Store
-		     (when (or (and (const-buffer-p (uop-load-x2 load))
-				    (or
-				     (numberp (const-buffer-value (uop-load-x2 load)))
-				     (stringp (const-buffer-value (uop-load-x2 load)))))				    
-			       (numberp (uop-load-x2 load))
-			       (stringp (uop-load-x2 load)))
-		       (when (not (equal (uop-store-x2 u) (uop-load-x2 load)))
-			 (setf changed-p t))
-		       (make-uop-store
-			:x1 (uop-store-x1 u)
-			:x2 (if (const-buffer-p (uop-load-x2 load))
-				(const-buffer-value (uop-load-x2 load))
-				(uop-load-x2 load))
-			:reduction (uop-store-reduction u))))
-		    (UOp-ALU
-		     (let* ((ok t)
-			    (alu
-			      (make-uop-alu
-			       :x-writes (uop-alu-x-writes u)
-			       :x-reads  (loop for r in (uop-alu-x-reads u)
-					       if (equal r (uop-load-x1 load))
-						 collect (if (const-buffer-p (uop-load-x2 load))
-							     (let ((value (const-buffer-value (uop-load-x2 load))))
-							       (if (or (stringp value) (numberp value))
-								   value
-								   (setf ok nil)))
-							     (let ((value (uop-load-x2 load)))
-							       (if (or (stringp value) (numberp value))
-								   value
-								   (setf ok nil))))
-					       else
-						 collect r)
-			       :op-type (uop-alu-op-type u)
-			       :dtype   (uop-alu-dtype u)
-			       :reduction (uop-alu-reduction u))))
-		       (when ok (setf changed-p t) alu))))))
-	    (when replacement
-	      (with-debug-level (3)
-		(format t "[Simplifier] LoadALUFusion: ~a -> ~a~%" u replacement))
-	      (setf new-uops (replace-uop new-uops u replacement)))))
-	(when changed-p
-	  (when (not (equalp uops new-uops))
-	    new-uops))))))
+	(flet ((constp (value)
+		 (or (and (const-buffer-p value)
+			  (or
+			   (numberp (const-buffer-value value))
+			   (stringp (const-buffer-value value))))
+		     (numberp value)
+		     (stringp value))))
+	  (dolist (u users)
+	    (let ((replacement
+		    (typecase u
+		      (UOp-Load
+		       (when (and
+			      (constp (uop-load-x2 load))
+			      (constp (uop-load-x2 u)))
+			 (when (not (equal (uop-load-x2 u) (uop-load-x2 load)))
+			   (setf changed-p t))
+			 (make-uop-load
+			  :x1 (uop-load-x1 u)
+			  :x2 (uop-load-x2 load)
+			  :reduction (uop-load-reduction u))))
+		      (UOp-Store
+		       (when (and
+			      (constp (uop-load-x2 load))
+			      (constp (uop-store-x1 u))
+			      (constp (uop-store-x2 u)))
+			 (when (not (equal (uop-store-x2 u) (uop-load-x2 load)))
+			   (setf changed-p t))
+			 (make-uop-store
+			  :x1 (uop-store-x1 u)
+			  :x2 (if (const-buffer-p (uop-load-x2 load))
+				  (const-buffer-value (uop-load-x2 load))
+				  (uop-load-x2 load))
+			  :reduction (uop-store-reduction u))))
+		      (UOp-ALU
+		       (when (and (constp (uop-load-x2 load)))
+			 (let* ((ok t)
+				(alu
+				  (make-uop-alu
+				   :x-writes (uop-alu-x-writes u)
+				   :x-reads  (loop for r in (uop-alu-x-reads u)
+						   if (and (constp r) (equal r (uop-load-x1 load)))
+						     collect (if (const-buffer-p (uop-load-x2 load))
+								 (let ((value (const-buffer-value (uop-load-x2 load))))
+								   (if (or (stringp value) (numberp value))
+								       value
+								       (setf ok nil)))
+								 (let ((value (uop-load-x2 load)))
+								   (if (or (stringp value) (numberp value))
+								       value
+								       (setf ok nil))))
+						   else
+						     collect r)
+				   :op-type (uop-alu-op-type u)
+				   :dtype   (uop-alu-dtype u)
+				   :reduction (uop-alu-reduction u))))
+			   (when ok (setf changed-p t) alu)))))))
+	      (when replacement
+		(with-debug-level (3)
+		  (format t "[Simplifier] LoadALUFusion: ~a -> ~a~%" u replacement))
+		(setf new-uops (replace-uop new-uops u replacement)))))
+	  (when changed-p
+	    (when (not (equalp uops new-uops))
+	      new-uops)))))))
 
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
