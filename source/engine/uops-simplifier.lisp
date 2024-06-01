@@ -3,6 +3,16 @@
 
 (in-package :abstracttensor/engine)
 
+;; [Workload]
+;;  追加したいやつ
+;;  - [x] Itersize=1 Loop Elimination
+;;  - [ ] More ALU Simplifications
+;;  - [ ] Loop Dependency Analysis
+;;  - [ ] AutoScheduler?
+;;  - [ ] Vectorization
+;;  - [ ] Group Vectorization (4x4 gemm)
+;;  - [ ] 
+
 (defparameter *simplifiers* (make-hash-table))
 
 (defun remove-uops (uops target)
@@ -251,6 +261,27 @@ And body:
 	    for y in load2s-new
 	    do (setf uops (replace-uop uops x y)))
       (when changed-p uops))))
+
+;; Removes a loop whose itersize is 1
+(define-simplifier RebundantLoopElimination (uops uops-full)
+  (symbol-macrolet ((->failed (return-from RebundantLoopElimination nil)))
+    (when (not (uop-loop-p (car uops)))->failed)
+    (let ((range (uop-loop-iters (car uops))))
+      (with-slots ((id id) (from from) (to to) (by by)) range
+	(when (or (not (numberp from)) (not (numberp to)) (not (numberp by)))->failed)
+	(when (not (= 1 (/ (- to from) by)))->failed)
+	(let ((endloop (find id uops :test #'(lambda (x y) (when (uop-endloop-p y) (equal x (range-id (uop-endloop-iters y))))))))
+	  (with-debug-level (3)
+	    (format t "[Simplifier] Purged a loop whose itersize is predicted to one: ~a~%" (car uops)))
+	  (replace-uop
+	   (remove-uops
+	    uops
+	    endloop)
+	   (car uops)
+	   (make-uop-load
+	    :x1 id
+	    :x2 (make-const-buffer :value from :type :int)
+	    :reduction nil)))))))
 
 ;; Arithmetic Simplification Patterns
 (macrolet ((def (name msg pattern)
