@@ -111,7 +111,7 @@ Example:
 		 (number (str)
 		   (declare (type string str))
 		   (if (cl-ppcre:all-matches "[0-9]" str)
-		       (parse-integer str)
+		       (parse-integer str :junk-allowed t)
 		       nil))
 		 (subscript (index checker)
 		   (declare (type function checker))
