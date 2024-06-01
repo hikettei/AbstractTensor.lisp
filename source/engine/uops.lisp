@@ -282,7 +282,7 @@ Store [x1] [x2]
 Stores the value of buffer x2 into x1.
 "
     ((x1 nil :type Buffers)
-     (x2 nil :type String)
+     (x2 nil :type (or number String))
      (reduction nil :type (or null string)))
     :read  (append
 	    (list (uop-store-x2 uop))

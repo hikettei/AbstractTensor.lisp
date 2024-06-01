@@ -413,6 +413,129 @@ And body:
 	    :dtype   (uop-alu-dtype alu))))))))
   )
 
+;; ALU -> Load
+;; Replacing ALUs whose argumetns are folded in the simplification process, and the number of args become zero, with Load.
+(define-simplifier ALU->Load (uops uops-full)
+  (symbol-macrolet ((->failed (return-from ALU->Load nil)))
+    (when (not (uop-alu-p (car uops)))->failed)
+    (when (not (find (uop-alu-op-type (car uops)) `(:+ :*)))->failed)
+    (when (not (= 1 (length (uop-alu-x-reads (car uops)))))->failed)
+    (when (not (= 1 (length (uop-alu-x-writes (car uops)))))->failed)
+    (with-debug-level (3)
+      (format t "[Simplifier] ALU->Load ~a~%" (car uops)))
+    `(,(make-uop-load
+	:x1 (car (uop-alu-x-writes (car uops)))
+	:x2 (car (uop-alu-x-reads (car uops)))
+	:reduction nil)
+      ,@(cdr uops))))
+
+(define-simplifier FoldConstantMultiply (uops uops-full)
+  (symbol-macrolet ((->failed (return-from FoldConstantMultiply nil)))
+    (when (not (uop-alu-p (car uops)))->failed)
+    (when (not (find (uop-alu-op-type (car uops)) `(:*)))->failed)
+    (when (not (some #'(lambda (x) (equal 0 x)) (uop-alu-x-reads (car uops))))->failed)
+    (when (not (= 1 (length (uop-alu-x-writes (car uops)))))->failed)
+
+    (with-debug-level (3)
+      (format t "[Simplifier] ALU -> 0: ~a~%" (car uops)))
+
+    `(,(make-uop-load
+	:x1 (car (uop-alu-x-writes (car uops)))
+	:x2 (make-const-buffer
+	     :value (or (find 0 (uop-alu-x-reads (car uops)) :test #'equal) (error "unexcepted"))
+	     :type  (uop-alu-dtype (car uops))))
+      ,@(cdr uops))))
+
+(define-simplifier FoldConstantMultiply-Remove1 (uops uops-full)
+  (symbol-macrolet ((->failed (return-from FoldConstantMultiply-Remove1 nil)))
+    (flet ((eq1 (x)
+	     (or (equal x 1)
+		 (when (const-buffer-p x)
+		   (equal (const-buffer-value x) 1)))))
+      (when (not (uop-alu-p (car uops)))->failed)
+      (when (not (find (uop-alu-op-type (car uops)) `(:*)))->failed)
+      (when (not (some #'eq1 (uop-alu-x-reads (car uops))))->failed)
+      (when (not (= 1 (length (uop-alu-x-writes (car uops)))))->failed)
+      (when (= 1 (length (uop-alu-x-reads  (car uops))))->failed)
+
+      (with-debug-level (3)
+	(format t "[Simplifier] ALU[*] Removed 1: ~a~%" (car uops)))
+
+      `(,(make-uop-alu
+	  :x-writes (uop-alu-x-writes (car uops))
+	  :x-reads  (loop for r in (uop-alu-x-reads (car uops))
+			  if (not (eq1 r))
+			    collect r)
+	  :op-type (uop-alu-op-type (car uops))
+	  :dtype   (uop-alu-dtype (car uops))
+	  :reduction (uop-alu-reduction (car uops)))
+	,@(cdr uops)))))
+
+(define-simplifier LoadALUFusion (uops uops-full)
+  (symbol-macrolet ((->failed (return-from LoadALUFusion nil)))
+    (when (not (uop-load-p (car uops)))->failed)
+    (let* ((load (car uops)))
+      (loop for uop in (cdr uops)
+	    if (find (uop-load-x1 load) (uop-writes uop) :test #'equal)
+	      do (progn ->failed))
+      (let* ((users (uops/value->users uops (uop-load-x1 load)))
+	     (new-uops uops)
+	     (changed-p nil))
+	(when (null users)->failed)
+	(dolist (u users)
+	  (let ((replacement
+		  (typecase u
+		    (UOp-Load
+		     (when (not (equal (uop-load-x2 u) (uop-load-x2 load)))
+		       (setf changed-p t))
+		     (make-uop-load
+		      :x1 (uop-load-x1 u)
+		      :x2 (uop-load-x2 load)
+		      :reduction (uop-load-reduction u)))
+		    (UOp-Store
+		     (when (or (and (const-buffer-p (uop-load-x2 load))
+				    (or
+				     (numberp (const-buffer-value (uop-load-x2 load)))
+				     (stringp (const-buffer-value (uop-load-x2 load)))))				    
+			       (numberp (uop-load-x2 load))
+			       (stringp (uop-load-x2 load)))
+		       (when (not (equal (uop-store-x2 u) (uop-load-x2 load)))
+			 (setf changed-p t))
+		       (make-uop-store
+			:x1 (uop-store-x1 u)
+			:x2 (if (const-buffer-p (uop-load-x2 load))
+				(const-buffer-value (uop-load-x2 load))
+				(uop-load-x2 load))
+			:reduction (uop-store-reduction u))))
+		    (UOp-ALU
+		     (let* ((ok t)
+			    (alu
+			      (make-uop-alu
+			       :x-writes (uop-alu-x-writes u)
+			       :x-reads  (loop for r in (uop-alu-x-reads u)
+					       if (equal r (uop-load-x1 load))
+						 collect (if (const-buffer-p (uop-load-x2 load))
+							     (let ((value (const-buffer-value (uop-load-x2 load))))
+							       (if (or (stringp value) (numberp value))
+								   value
+								   (setf ok nil)))
+							     (let ((value (uop-load-x2 load)))
+							       (if (or (stringp value) (numberp value))
+								   value
+								   (setf ok nil))))
+					       else
+						 collect r)
+			       :op-type (uop-alu-op-type u)
+			       :dtype   (uop-alu-dtype u)
+			       :reduction (uop-alu-reduction u))))
+		       (when ok (setf changed-p t) alu))))))
+	    (when replacement
+	      (with-debug-level (3)
+		(format t "[Simplifier] LoadALUFusion: ~a -> ~a~%" u replacement))
+	      (setf new-uops (replace-uop new-uops u replacement)))))
+	(when changed-p new-uops)))))
+
+
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defun apply-simplifier (uops simplifier &aux (changed-p nil))
