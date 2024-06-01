@@ -6,7 +6,7 @@
 ;; [Workload]
 ;;  追加したいやつ
 ;;  - [x] Itersize=1 Loop Elimination
-;;  - [ ] More ALU Simplifications
+;;  - [x] More ALU Simplifications
 ;;  - [ ] Loop Dependency Analysis
 ;;  - [ ] AutoScheduler?
 ;;  - [ ] Vectorization
@@ -533,7 +533,9 @@ And body:
 	      (with-debug-level (3)
 		(format t "[Simplifier] LoadALUFusion: ~a -> ~a~%" u replacement))
 	      (setf new-uops (replace-uop new-uops u replacement)))))
-	(when changed-p new-uops)))))
+	(when changed-p
+	  (when (not (equalp uops new-uops))
+	    new-uops))))))
 
 
 ;; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
