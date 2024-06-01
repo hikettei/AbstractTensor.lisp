@@ -133,7 +133,7 @@ And body:
 		 (b (second mul-reads))
 		 (c (loop named find-c
 			  for r in add-reads
-			  if (not (string= r (car mul-writes)))
+			  if (not (equal r (car mul-writes)))
 			    do (return-from find-c r))))
 	     (list a b c))
 	   :op-type :wmma
