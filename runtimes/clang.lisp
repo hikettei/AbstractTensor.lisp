@@ -330,8 +330,7 @@
 
 (defmethod aten/engine:render-graph ((backend (eql :clang)) uopgraph)
   (with-output-to-string (out)
-    (let ((indent 0))
-      (declare (ignore indent))
+    (let ((*indent* 0))
       (dolist (op (aten/engine:uopgraph-uops uopgraph))
 	(uop->line out op (aten/engine:uopgraph-uops uopgraph))))))
 

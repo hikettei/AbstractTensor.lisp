@@ -245,7 +245,16 @@ And body:
 	   (_ (when (not (= (length (uops/user->values uops-full (uop-load-x1 load1))) 1))->failed))
 	   (load2s-new
 	     (loop for l in load2s
-		   if (uop-load-p l)
+		   if (and
+		       (uop-load-p l)
+		       (let ((value (uop-load-x2 l)))
+			 (or
+			  (and (const-buffer-p value)
+			       (or
+				(numberp (const-buffer-value value))
+				(stringp (const-buffer-value value))))
+			  (numberp value)
+			  (stringp value))))
 		     collect (progn
 			       (setf changed-p t)
 			       (with-debug-level (3)
