@@ -32,7 +32,7 @@
    #:*lazy-cache-buffer*
    #:*lazy-compile-mode*
    #:compile-source-code
-   #:with-lazy-compile-mode
+   #:with-lazy-compilation-mode
    )
 
   ;; UOpGraph

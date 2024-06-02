@@ -101,7 +101,7 @@ See also: `declare-runtime`
 (defparameter *lazy-cache-buffer* nil)
 (defparameter *lazy-compile-mode* nil)
 
-(defmacro lazy-compile-mode (&body body)
+(defmacro with-lazy-compilation-mode (&body body)
   `(let ((*lazy-cache-buffer* "")
 	 (*lazy-compile-mode* t))
      (progn ,@body)
