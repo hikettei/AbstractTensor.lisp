@@ -287,7 +287,18 @@
 			     for arg-buff = (->buffer arg)
 			     append
 			     (list arg-buff (format nil "~a" op-c))))))))
-	  ((find op-type '(:sin :exp))
+	  ((find op-type '(:sin
+			   :cos
+			   :tan
+			   :sinh
+			   :cosh
+			   :tanh
+			   :asinh
+			   :acosh
+			   :atanh
+			   :log
+			   :exp
+			   :sqrt))
 	   ;; Arithmetic
 	   (let ((op-c (case op-type
 			 (T op-type))))

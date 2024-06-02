@@ -22,6 +22,17 @@
 
      ;; Mathematical Functions (WIP)
      :sin
-     :exp     
+     :cos
+     :tan
+     :sinh
+     :cosh
+     :tanh
+     :asinh
+     :acosh
+     :atanh
+
+     :log
+     :exp
+     :sqrt
      )))
 
