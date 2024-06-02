@@ -214,7 +214,7 @@
 	 stream
 	 "~a~%void ~a(~a);~%void ~a(~a) {~%"
 	 (if (and aten/engine:*lazy-compile-mode*
-		  (not (null aten/engine:*lazy-cache-buffer*)))
+		  (not (string= "" aten/engine:*lazy-cache-buffer*)))
 	     ""	     
 	     *headers*)
 	 named
