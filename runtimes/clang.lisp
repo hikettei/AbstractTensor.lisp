@@ -173,7 +173,12 @@
   (ecase type
     (:double "double")
     (:float "float")
-    (:int "int64_t")))
+    (:int "int")
+    (:int64 "int64_t")
+    (:int32 "int32_t")
+    (:uint32 "uint32_t")
+    (T
+     (cName type))))
 
 (defun uop->line (stream uop uops-full)
   (flet ((->buffer (object)
@@ -199,7 +204,7 @@
 			      (if output-p
 				  "const "
 				  "")
-			      (cName type)
+			      (cType type)
 			      (if scalar-p
 				  ""
 				  " *")
@@ -252,7 +257,7 @@
 		  (indent)
 		  (if simd-p
 		      (packed-dtype type)
-		      type)
+		      (cType type))
 		  (if (and (null simd-p) pointer-p) "*" "")
 		  (->buffer x1) (->buffer x2)))))
      :alu
@@ -267,7 +272,7 @@
 		       ""
 		       (if simd-p
 			   (format nil "~a " (packed-dtype dtype))	 
-			   (format nil "~a " (cName dtype))))
+			   (format nil "~a " (cType dtype))))
 		   (->buffer (nth 0 x-writes))
 		   (->buffer (nth 0 x-reads))
 		   (->buffer (nth 1 x-reads))
@@ -280,7 +285,7 @@
 			 (T op-type))))
 	     (format stream "~a~a ~a = (~a);~%"
 		     (indent)
-		     (cName dtype)
+		     (cType dtype)
 		     (->buffer (car x-writes))
 		     (apply
 		      #'concatenate
@@ -307,7 +312,7 @@
 			 (T op-type))))
 	     (format stream "~a~a ~a = ~(~a~)(~a);~%"
 		     (indent)
-		     (cName dtype)
+		     (cType dtype)
 		     (->buffer (car x-writes))
 		     op-c
 		     (apply
