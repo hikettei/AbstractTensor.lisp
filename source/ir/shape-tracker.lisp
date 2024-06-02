@@ -101,7 +101,7 @@ Example:
 		   (declare (type string str))
 		   ;; name = 0~9, a-z, A-Z, - or _
 		   (if (cl-ppcre:all-matches "[0-9|a-z|A-Z|_|-]" str)
-		       (the keyword (intern (string-upcase str) "KEYWORD"))
+		       (the keyword (intern (cName (string-upcase str)) "KEYWORD"))
 		       nil))
 		 (broadcast (str)
 		   (declare (type (simple-array character (*)) str))
@@ -133,14 +133,14 @@ Example:
 				 (prog1
 				     (funcall checker (xsubseq:xsubseq (the string expression) i pos))
 				   (setf i (1+ pos))))))))
-	  (values
+	  (values ;; name
 	   (parse
 	    (take 0)
 	    #'(lambda (x)
 		(or
 		 (name (str x))
 		 (error "invaild name"))))
-	   (parse
+	   (parse ;;type
 	    (take 1)
 	    (subscript
 	     0
@@ -148,7 +148,7 @@ Example:
 		 (or
 		  (name x1)
 		  (error "invaild type")))))
-	   (parse
+	   (parse ;; shape
 	    (take 2)
 	    (subscript
 	     1
@@ -158,7 +158,7 @@ Example:
 		  (name x1)
 		  (broadcast x1)
 		  (error "cannot parse1 ~a" x1)))))
-	   (parse
+	   (parse ;; stride
 	    (take 3)
 	    (subscript
 	     2
@@ -168,6 +168,7 @@ Example:
 		  (broadcast x1)
 		  (error "cannot parse2 ~a" x1)))))
 	   (let ((str (the (simple-array character (*)) (str (take 4)))))
+	     ;; where
 	     (if (string= str "()")
 		 nil
 		 (read-from-string (cl-ppcre:regex-replace-all "=" str " = "))))))

@@ -7,6 +7,10 @@
   (val 0 :type fixnum)
   (alu 0 :type fixnum))
 
+(defun cName (string)
+  (declare (type string string))
+  (cl-ppcre:regex-replace-all "-" string "_"))
+
 (defun read-counter (counter name)
   (declare (type Counter counter)
 	   (type symbol name))
@@ -63,9 +67,9 @@
 (defun graph-funcall (counter scope form)
   (flet ((explore (code)
 	   (graph-funcall counter scope code))
-	 (getscope (name &aux (name (if (symbolp name) (symbol-name name) name)))
+	 (getscope (name &aux (name (if (symbolp name) (cName (symbol-name name)) name)))
 	   (or (gethash name scope)
-	       (error "~a is not defined." name)))
+	       (error "graph-funcall: ~a is not defined.~%Binds: ~a" name (alexandria:hash-table-keys scope))))
 	 (cache (value id dtype)
 	   (or
 	    (gethash value (counter-cache counter))
@@ -82,7 +86,7 @@
        ;; binds the iterator variables into bind
        (let* ((count (explore count))
 	      (count-idx (aten/engine:uop->buffer (car (last count))))
-	      (bind (symbol-name bind))
+	      (bind  (cName (symbol-name bind)))
 	      (range (spawn-range bind 0 count-idx 1)))
 	 (setf (gethash bind scope) (cons bind :int))
 	 (prog1
@@ -103,7 +107,7 @@
        (let* ((from-uop (explore from))
 	      (to-uop   (explore to))
 	      (by-uop   (explore by))
-	      (bind (symbol-name bind))
+	      (bind (cName (symbol-name bind)))
 	      (from-buff (aten/engine:uop->buffer (car (last from-uop))))
 	      (to-buff   (aten/engine:uop->buffer (car (last to-uop))))
 	      (by-buff   (aten/engine:uop->buffer (car (last by-uop))))
@@ -158,7 +162,7 @@
       ((list 'set to what)
        (let ((to (progn
 		   (unless (symbolp to) (error "(setf to what) to must be a symbol but got ~a" to))
-		   (symbol-name to)))
+		   (cName (symbol-name to))))
 	     (what (explore what)))
 	 (setf (gethash to scope) (cons to (infer-dtype-from-uop (car (last what)))))
 	 `(,@what
@@ -232,7 +236,7 @@
 		 :x-reads
 		 (loop for arg in args
 		       append (list (aten/engine:uop->buffer (car (last arg)))))
-		 :op-type (intern (symbol-name car) "KEYWORD")
+		 :op-type (intern (cName (symbol-name car)) "KEYWORD")
 		 ;; Asserting that all dtypes are the same.
 		 :dtype dtype))
 	      (op1 (aten/engine::copy-uop-alu op))
@@ -280,6 +284,7 @@
 	      (name (if (symbolp name)
 			(symbol-name name)
 			name))
+	      (name (cName name))
 	      (cache (read-cache name))
 	      (_ (if cache (return-from graph-funcall cache)))
 	      (val (aten/engine:make-const-buffer :value name :type (cdr (getscope form)) :pointer-p nil))
@@ -319,7 +324,7 @@
     ;; Register symbols
     (dolist (shape (aten/ir:aten-shape input))
       (when (not (numberp shape))
-	(let ((sid (symbol-name shape)))
+	(let ((sid (cName (symbol-name shape))))
 	  (push (aten/engine:make-uop-declare-var :var sid :dtype :int :pointer-p nil) declares)
 	  (setf (gethash sid scope) (cons sid :int))))))
 

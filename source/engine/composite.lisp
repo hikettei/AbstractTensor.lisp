@@ -7,7 +7,7 @@
   (declare (type UOp-Defun uop-defun))
   (let ((outputs (uop-defun-outputs uop-defun)))
     (loop for k in outputs
-	  collect (position k (uop-defun-inputs uop-defun) :key (alexandria:compose #'aten/ir:aten-id) :test #'equal))))
+	  collect (position k (uop-defun-inputs uop-defun) :key (alexandria:compose #'aten/ir:aten-id) :test #'equalp))))
 
 (defstruct (Compiled-Composite
 	    (:conc-name cc-)

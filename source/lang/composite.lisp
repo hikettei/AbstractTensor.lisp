@@ -1,6 +1,9 @@
 
 (in-package :abstracttensor/lang)
 
+(defun cName (string)
+  (cl-ppcre:regex-replace-all "-" string "_"))
+
 (defmacro with-text ((bind path) &body body)
   `(let ((,bind (alexandria:read-file-into-string ,path)))
      ,@body))
@@ -23,7 +26,7 @@
 	 :path ""
 	 :name (config-of composite "name" (gensym "CID"))
 	 :inputs (map 'list #'aten/ir:parse-aten (config-of composite "inputs"))
-	 :outputs (map 'list #'(lambda (x) (string-upcase x)) (config-of composite "outputs"))
+	 :outputs (map 'list #'(lambda (x) (cName (string-upcase x))) (config-of composite "outputs"))
 	 :code (config-of impl "code")
 	 :test-requirements (if (eql test :none)
 				nil
@@ -36,5 +39,11 @@
 (defun composite-from-file (filepath)
   (with-text (toml filepath)
     (let ((result (composite-from-toml toml)))
+      (dolist (o (aten/ir:composite-outputs result))
+	(assert (find o (aten/ir:composite-inputs result) :key #'aten/ir:aten-id :test #'equalp)
+		()
+		"The output ~a is not appeared in the declared ShapeTracker: ~a"
+		o
+		(aten/ir:composite-inputs result)))
       (setf (aten/ir:composite-path result) filepath)
       result)))

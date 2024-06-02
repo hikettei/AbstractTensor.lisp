@@ -12,3 +12,7 @@
   (test-requirements nil :type list)
   (test-code         ""  :type string))
 
+(defun cName (string)
+  (cl-ppcre:regex-replace-all "-" string "_"))
+
+

@@ -163,8 +163,8 @@
 	(let* ((end (1+ end))
 	       (sliced (subseq uops start end)))
 	  (assert (string=
-		   (the simple-base-string (range-id (uop-loop-iters (car sliced))))
-		   (the simple-base-string (range-id (uop-endloop-iters (car (last sliced))))))
+		   (the string (range-id (uop-loop-iters (car sliced))))
+		   (the string (range-id (uop-endloop-iters (car (last sliced))))))
 		  ()
 		  "Assertion failed")
 	  (values sliced start end))))))

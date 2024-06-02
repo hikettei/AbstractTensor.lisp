@@ -3,7 +3,7 @@
   :description "A Programming Language dedicated to Deep Learning Compiler"
   :author      "hikettei <ichndm@gmail.com>"
   :licence     "MIT"
-  :depends-on ("clop" "alexandria" "trivia")
+  :depends-on ("clop" "alexandria" "trivia" "cl-ppcre")
   :components
   ((:file "package")
    (:file "trace")
