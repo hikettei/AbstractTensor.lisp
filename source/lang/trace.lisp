@@ -282,9 +282,8 @@
        (let* ((name (car (getscope form)))
 	      (name (or (aten/engine:uop->buffer name) name))
 	      (name (if (symbolp name)
-			(symbol-name name)
+			(cName (symbol-name name))
 			name))
-	      (name (cName name))
 	      (cache (read-cache name))
 	      (_ (if cache (return-from graph-funcall cache)))
 	      (val (aten/engine:make-const-buffer :value name :type (cdr (getscope form)) :pointer-p nil))
@@ -324,7 +323,7 @@
     ;; Register symbols
     (dolist (shape (aten/ir:aten-shape input))
       (when (not (numberp shape))
-	(let ((sid (cName (symbol-name shape))))
+	(let ((sid (symbol-name shape)))
 	  (push (aten/engine:make-uop-declare-var :var sid :dtype :int :pointer-p nil) declares)
 	  (setf (gethash sid scope) (cons sid :int))))))
 
