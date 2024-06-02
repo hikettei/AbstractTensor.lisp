@@ -236,7 +236,7 @@
 		 :x-reads
 		 (loop for arg in args
 		       append (list (aten/engine:uop->buffer (car (last arg)))))
-		 :op-type (intern (cName (symbol-name car)) "KEYWORD")
+		 :op-type (intern (symbol-name car) "KEYWORD")
 		 ;; Asserting that all dtypes are the same.
 		 :dtype dtype))
 	      (op1 (aten/engine::copy-uop-alu op))
