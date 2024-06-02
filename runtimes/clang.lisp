@@ -213,7 +213,10 @@
 	(format
 	 stream
 	 "~a~%void ~a(~a);~%void ~a(~a) {~%"
-	 *headers*
+	 (if (and aten/engine:*lazy-compile-mode*
+		  (not (null aten/engine:*lazy-cache-buffer*)))
+	     ""	     
+	     *headers*)
 	 named
 	 args
 	 named
@@ -426,26 +429,33 @@ Compiled with: ~a"
 			   `(:pointer ,bind))
 		   :void))))))
 
+(defmethod aten/engine:compile-source-code ((backend (eql :clang))
+					    compiled-code)
+  (load-foreign-function
+   compiled-code
+   :compiler *cc*
+   :compiler-flags
+   (append
+    (list
+     "-fPIC"
+     (format nil "-O~a" *opt*)
+     (format nil "-march=~a" *march*))
+    
+    (when *arm-neon-p*
+      (list "-mfpu=neon" "-ftree-vectorize")))))
+
 (defmethod aten/engine:load-compiled-composite ((backend (eql :clang))
 						compiled-code
 						composite
-						header-object)
+						header-object
+						compile-lazy)
   (declare (type string compiled-code)
 	   (type aten/engine::UOp-Defun header-object))
-
+  
   (with-slots ((inputs aten/engine::inputs) (outputs aten/engine::outputs) (named aten/engine::named)) header-object
-    (load-foreign-function
-     compiled-code
-     :compiler *cc*
-     :compiler-flags
-     (append
-      (list
-       "-fPIC"
-       (format nil "-O~a" *opt*)
-       (format nil "-march=~a" *march*))
-      
-      (when *arm-neon-p*
-	(list "-mfpu=neon" "-ftree-vectorize"))))
+    (when (null compile-lazy)
+      (aten/engine:compile-source-code backend compiled-code))
     ;; inputs = a list of abstracttensor
     
     (aten/engine:make-compiled-composite (compile nil (make-cffi-call-form named inputs)) composite header-object)))
+

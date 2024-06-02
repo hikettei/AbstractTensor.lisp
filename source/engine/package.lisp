@@ -29,6 +29,10 @@
    #:initialize-runtime
    #:declare-runtime
    #:realize
+   #:*lazy-cache-buffer*
+   #:*lazy-compile-mode*
+   #:compile-source-code
+   #:with-lazy-compile-mode
    )
 
   ;; UOpGraph
