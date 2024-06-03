@@ -30,6 +30,7 @@
 ;; ~~ Compilation Options ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 (defparameter *headers* "#include <math.h>
+#include <stdint.h>
 ")
 (defparameter *sleef-p* nil)
 (defparameter *omp-p*   nil)

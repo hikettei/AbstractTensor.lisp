@@ -135,16 +135,17 @@ return -> (values accuracy time_compiled_composite time_test_code)"
 			(if output-p
 			    (if (numberp (nth nth common-inputs))
 				(nth nth common-inputs)
-				(let ((shapes (map 'list #'(lambda (x) (gethash (symbol-name x) variables)) (aten/ir:aten-shape arg))))
+				(let ((shapes (map 'list #'(lambda (x) (if (numberp x) x (gethash (symbol-name x) variables))) (aten/ir:aten-shape arg))))
 				  (funcall allocator arg shapes)))
 			    ;; Input
 			    (nth nth common-inputs)))
 		       (dolist (x (aten/ir:aten-shape arg))
 			 (or
+			  (when (numberp x) x)
 			  (find (symbol-name x) (alexandria:hash-table-keys variables) :test #'equal)
 			  (error "test-composite: ~a is not provided." x)))
 		       (if (aten/ir:aten-shape arg)
-			   (let ((shapes (map 'list #'(lambda (x) (gethash (symbol-name x) variables)) (aten/ir:aten-shape arg))))
+			   (let ((shapes (map 'list #'(lambda (x) (if (numberp x) x (gethash (symbol-name x) variables))) (aten/ir:aten-shape arg))))
 			     (funcall f arg shapes))
 			   (let ((value (gethash (aten/ir:aten-id arg) variables)))
 			     (assert value () "test-composite: A scalar tensor ~a is not provided." arg)
